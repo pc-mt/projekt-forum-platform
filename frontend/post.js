@@ -1,0 +1,315 @@
+let selectedTag = 'news';
+let currentFilter = 'all';
+let currentSort = 'popular';
+let openPostId = null;
+let posts = [];
+
+function getAuthHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = window.userState?.token;
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+function getTagHTML(type){
+  if(type==='news') return '<span class="tag tag-news">📰 Neuigkeit</span>';
+  if(type==='idea') return '<span class="tag tag-idea">💡 Idee</span>';
+  return '<span class="tag tag-disc">💬 Diskussion</span>';
+}
+
+function getCurrentUser(){
+  if (window.userState && window.userState.currentUser) return window.userState.currentUser;
+  return { name: 'Gast', initials: 'G', role: 'user' };
+}
+
+function mapPostDto(item) {
+  return {
+    id: item.id,
+    type: item.postType,
+    pinned: Boolean(item.isPinned),
+    title: item.title,
+    excerpt: item.contentPreview || '',
+    content: item.content || item.contentPreview || '',
+    author: item.author?.fullName || 'Unknown',
+    role: (item.author?.role || 'user').toLowerCase(),
+    initials: (item.author?.fullName || 'U').split(' ').map(s => s[0]).join('').slice(0,2).toUpperCase(),
+    avColor: 'rgba(61,184,122,0.1)',
+    avTextColor: 'var(--green)',
+    date: item.createdAt || '',
+    score: item.stats?.score ?? 0,
+    userVote: item.viewerVote === 'up' ? 1 : item.viewerVote === 'down' ? -1 : 0,
+    comments: [],
+    commentsCount: item.stats?.commentsCount ?? 0
+  };
+}
+
+async function refreshFeed() {
+  const params = new URLSearchParams();
+  if (currentFilter !== 'all') params.set('type', currentFilter);
+  params.set('sort', currentSort);
+  const res = await fetch(`/api/posts?${params.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  posts = (data.items || []).map(mapPostDto);
+  renderPosts();
+  renderAdminTable();
+}
+
+function renderPosts(){
+  const container = document.getElementById('posts-container');
+  if(!posts.length){
+    container.innerHTML=`<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><h3>Keine Beitraege gefunden</h3><p>Sei der Erste, der in dieser Kategorie einen Beitrag veroeffentlicht.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = posts.map((p,i) => `
+    <div class="post-card ${p.pinned?'pinned':''}" onclick="openPost(${p.id})" style="animation-delay:${i*0.07}s">
+      <div class="post-card-body">
+        <div class="post-meta">
+          ${getTagHTML(p.type)}
+          <span class="post-author">von <strong>${p.author}</strong> <span class="role-badge ${p.role==='admin'?'role-admin':'role-user'}">${p.role==='admin'?'Admin':'User'}</span></span>
+          <span class="post-author">${p.date}</span>
+          ${p.pinned?'<span class="post-pinned-badge">📌 Angeheftet</span>':''}
+        </div>
+        <div class="post-title">${p.title}</div>
+        <div class="post-excerpt">${p.excerpt}</div>
+      </div>
+      <div class="post-footer" onclick="event.stopPropagation()">
+        <button class="vote-btn up ${p.userVote===1?'active':''}" onclick="vote(${p.id},1)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+        </button>
+        <span class="score ${p.score>0?'positive':p.score<0?'negative':''}">${p.score}</span>
+        <button class="vote-btn down ${p.userVote===-1?'active':''}" onclick="vote(${p.id},-1)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="post-action" onclick="openPost(${p.id})">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          ${p.commentsCount} Kommentar${p.commentsCount!==1?'s':''}
+        </div>
+        ${getCurrentUser().role==='admin'?`
+        <div class="post-action" onclick="togglePin(${p.id},event)" style="margin-left:auto;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/></svg>
+          ${p.pinned?'Loesen':'Anheften'}
+        </div>`:''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderAdminTable(){
+  const tbody = document.getElementById('admin-table-body');
+  if(!tbody) return;
+  tbody.innerHTML = posts.map(p=>`
+    <tr>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.pinned?'📌 ':''}${p.title}</td>
+      <td><span class="role-badge ${p.role==='admin'?'role-admin':'role-user'}">${p.author}</span></td>
+      <td>${getTagHTML(p.type)}</td>
+      <td style="color:var(--green);font-weight:700;">+${p.score}</td>
+      <td><span class="status-dot ${p.pinned?'status-pinned':'status-active'}"></span>${p.pinned?'Angeheftet':'Aktiv'}</td>
+      <td style="display:flex;gap:6px;">-</td>
+    </tr>
+  `).join('');
+}
+
+function renderProfile(){
+  const el = document.getElementById('profile-posts');
+  if(!el) return;
+  const recentPosts = (window.userState && window.userState.profile && Array.isArray(window.userState.profile.recentPosts))
+    ? window.userState.profile.recentPosts
+    : [];
+  el.innerHTML = recentPosts.length ? recentPosts.map(p=>`
+    <div style="padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick="navigate('feed');setTimeout(()=>openPost(${p.id}),300)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">${getTagHTML(p.postType)}<span style="font-size:0.8rem;color:var(--text3);">${p.createdAt}</span></div>
+      <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;">${p.title}</div>
+      <div style="font-size:0.8rem;color:var(--text3);">Score: <strong style="color:var(--green);">+${p.score}</strong> · ${p.commentsCount} Kommentare</div>
+    </div>
+  `).join('') : '<p style="color:var(--text3);font-size:0.875rem;">Zurzeit keine Veroeffentlichungen.</p>';
+}
+
+async function vote(id, dir){
+  const p = posts.find(x=>x.id===id);
+  if(!p) return;
+  if (!window.userState?.isLoggedIn) {
+    showToast('Bitte zuerst anmelden', 'error');
+    openModal('login');
+    return;
+  }
+  try {
+    const voteType = dir === 1 ? 'up' : 'down';
+    const res = await fetch(`/api/posts/${id}/vote`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ voteType })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.error || `HTTP ${res.status}`, 'error');
+      return;
+    }
+    p.score = data.score ?? p.score;
+    p.userVote = data.viewerVote === 'up' ? 1 : data.viewerVote === 'down' ? -1 : 0;
+    renderPosts();
+    if(openPostId===id) openPost(id);
+    showToast(dir===1?'Like gespeichert ✓':'Dislike gespeichert ✓','success');
+  } catch {
+    showToast('Netzwerkfehler beim Abstimmen', 'error');
+  }
+}
+
+function togglePin(id, e){
+  if(e) e.stopPropagation();
+  const p = posts.find(x=>x.id===id);
+  if(!p) return;
+  p.pinned = !p.pinned;
+  renderPosts();
+  renderAdminTable();
+  showToast(p.pinned?'Beitrag angeheftet 📌':'Beitrag geloest','success');
+}
+
+function deletePost(id, e){
+  if(e) e.stopPropagation();
+  const idx = posts.findIndex(x=>x.id===id);
+  if (idx < 0) return;
+  posts.splice(idx,1);
+  renderPosts();
+  renderAdminTable();
+  closeDetail();
+}
+
+async function openPost(id){
+  let p = posts.find(x=>x.id===id);
+  try {
+    const res = await fetch(`/api/posts/${id}`);
+    if (!res.ok) {
+      showToast('Beitrag nicht gefunden', 'error');
+      return;
+    }
+    const detail = await res.json();
+    if (p) {
+      p.content = detail.content || p.excerpt;
+      p.score = detail.stats?.score ?? p.score;
+      p.commentsCount = detail.stats?.commentsCount ?? p.commentsCount;
+      p.userVote = detail.viewerVote === 'up' ? 1 : detail.viewerVote === 'down' ? -1 : p.userVote;
+    } else {
+      p = mapPostDto({
+        id: detail.id,
+        postType: detail.postType,
+        title: detail.title,
+        contentPreview: detail.content || '',
+        content: detail.content,
+        isPinned: detail.isPinned,
+        createdAt: detail.createdAt,
+        author: detail.author,
+        stats: detail.stats,
+        viewerVote: detail.viewerVote
+      });
+    }
+  } catch {
+    showToast('Beitrag konnte nicht geladen werden', 'error');
+    return;
+  }
+
+  if (window.commentApi?.loadCommentsForPost) {
+    try {
+      const loaded = await window.commentApi.loadCommentsForPost(id);
+      p.comments = loaded.items || [];
+      p.commentsCount = loaded.totalCount ?? p.commentsCount;
+    } catch {}
+  }
+
+  openPostId = id;
+  const panel = document.getElementById('detail-panel');
+  const adminBtns = document.getElementById('detail-admin-btns');
+
+  adminBtns.innerHTML = getCurrentUser().role==='admin' ? `
+    <button class="btn btn-ghost btn-sm" onclick="togglePin(${id},event)">${p.pinned?'Loesen':'Anheften'}</button>
+    <button class="btn btn-sm" style="background:rgba(224,85,85,0.1);color:var(--red);border:1px solid var(--red);" onclick="deletePost(${id},event)">Loeschen</button>
+  ` : '';
+
+  document.getElementById('detail-content').innerHTML = `
+    <div class="post-meta">${getTagHTML(p.type)}<span class="post-author">von <strong>${p.author}</strong> <span class="role-badge ${p.role==='admin'?'role-admin':'role-user'}">${p.role==='admin'?'Admin':'User'}</span></span><span class="post-author">${p.date}</span>${p.pinned?'<span class="post-pinned-badge">📌 Angeheftet</span>':''}</div>
+    <div class="detail-title">${p.title}</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+      <button class="vote-btn up ${p.userVote===1?'active':''}" onclick="vote(${p.id},1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></button>
+      <span class="score ${p.score>0?'positive':p.score<0?'negative':''}" style="font-size:1rem;">${p.score}</span>
+      <button class="vote-btn down ${p.userVote===-1?'active':''}" onclick="vote(${p.id},-1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+    </div>
+    <div class="detail-body">${p.content || p.excerpt}</div>
+    <div class="comments-section">
+      <div class="comments-title">💬 ${p.commentsCount} Kommentar${p.commentsCount!==1?'s':''}</div>
+      ${window.commentApi?.renderCommentsHtml ? window.commentApi.renderCommentsHtml(p.id, p.comments || []) : ''}
+      <div class="comment-form">
+        <div class="comment-form-title">Dein Kommentar</div>
+        <textarea class="form-input" id="comment-input-${p.id}" placeholder="Teile deine Meinung..." style="min-height:80px;margin-bottom:10px;"></textarea>
+        <button class="btn btn-gold btn-sm" onclick="submitComment(${p.id})">Veroeffentlichen</button>
+      </div>
+    </div>
+  `;
+  panel.classList.add('open');
+}
+
+function closeDetail(){
+  document.getElementById('detail-panel').classList.remove('open');
+  openPostId = null;
+}
+
+function setFilter(type){
+  currentFilter = type;
+  refreshFeed().catch(e => showToast(e.message, 'error'));
+}
+
+function setFilterChip(el, type){
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  setFilter(type);
+}
+
+function setSidebarActive(el){
+  document.querySelectorAll('.sidebar-item').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function sortPosts(val){
+  currentSort = val;
+  refreshFeed().catch(e => showToast(e.message, 'error'));
+}
+
+function selectTag(tag){
+  selectedTag = tag;
+  document.querySelectorAll('.tag-opt').forEach(el=>{ el.className = 'tag-opt'; });
+  document.getElementById('tag-'+tag).className = 'tag-opt sel-'+tag;
+}
+
+async function submitPost(){
+  if (!window.userState || !window.userState.isLoggedIn) {
+    showToast('Bitte zuerst anmelden', 'error');
+    openModal('login');
+    return;
+  }
+  const title = document.getElementById('post-title').value.trim();
+  const body = document.getElementById('post-body').value.trim();
+  if(!title||!body){ showToast('Bitte Titel und Inhalt ausfuellen','error'); return; }
+
+  const token = window.userState?.token;
+  const res = await fetch('/api/posts', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: JSON.stringify({ postType: selectedTag, title, content: body })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    showToast(data.error || `HTTP ${res.status}`, 'error');
+    return;
+  }
+
+  closeModal('create');
+  document.getElementById('post-title').value='';
+  document.getElementById('post-body').value='';
+  await refreshFeed();
+  showToast('Beitrag erfolgreich veroeffentlicht ✓','success');
+}
+
+window.openPost = openPost;
