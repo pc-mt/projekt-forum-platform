@@ -49,8 +49,14 @@ public class CommentService {
         if (!"up".equals(voteType) && !"down".equals(voteType)) {
             return Future.failedFuture(new ApiException(400, "voteType must be one of: up, down"));
         }
-        return repository.upsertCommentVote(commentId, userId, voteType)
-                .compose(v -> repository.getCommentVoteStats(commentId, userId));
+        return repository.findUserCommentVote(commentId, userId).compose(currentVote -> {
+            if (voteType.equals(currentVote)) {
+                return repository.deleteCommentVote(commentId, userId)
+                        .compose(v -> repository.getCommentVoteStats(commentId, userId));
+            }
+            return repository.upsertCommentVote(commentId, userId, voteType)
+                    .compose(v -> repository.getCommentVoteStats(commentId, userId));
+        });
     }
 
     private String normalize(String value) {

@@ -20,8 +20,9 @@ public class PostController {
         String sort = ctx.request().getParam("sort");
         int page = parseInt(ctx.request().getParam("page"), 1);
         int limit = parseInt(ctx.request().getParam("limit"), 20);
+        Long viewerUserId = extractUserIdOptional(ctx);
 
-        postService.listPosts(type, sort, page, limit)
+        postService.listPosts(type, sort, page, limit, viewerUserId)
                 .onSuccess(result -> json(ctx, 200, result))
                 .onFailure(err -> handleFailure(ctx, err));
     }
@@ -47,7 +48,7 @@ public class PostController {
             return;
         }
 
-        postService.getPostDetail(postId)
+        postService.getPostDetail(postId, extractUserIdOptional(ctx))
                 .onSuccess(result -> json(ctx, 200, result))
                 .onFailure(err -> handleFailure(ctx, err));
     }
@@ -63,6 +64,18 @@ public class PostController {
             return Long.parseLong(jwtUtils.verifyToken(token).getSubject());
         } catch (Exception e) {
             json(ctx, 401, new JsonObject().put("error", "unauthorized"));
+            return null;
+        }
+    }
+
+    private Long extractUserIdOptional(RoutingContext ctx) {
+        String auth = ctx.request().getHeader("Authorization");
+        if (auth == null || !auth.startsWith("Bearer ")) {
+            return null;
+        }
+        try {
+            return Long.parseLong(jwtUtils.verifyToken(auth.substring("Bearer ".length()).trim()).getSubject());
+        } catch (Exception e) {
             return null;
         }
     }

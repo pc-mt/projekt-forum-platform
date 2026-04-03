@@ -16,7 +16,7 @@ public class PostService {
         this.repository = new PostRepository();
     }
 
-    public Future<JsonObject> listPosts(String type, String sort, int page, int limit) {
+    public Future<JsonObject> listPosts(String type, String sort, int page, int limit, Long viewerUserId) {
         String normalizedType = type == null || type.isBlank() ? null : type.trim().toLowerCase();
         String normalizedSort = sort == null || sort.isBlank() ? "recent" : sort.trim().toLowerCase();
 
@@ -27,7 +27,7 @@ public class PostService {
             return Future.failedFuture(new ApiException(400, "invalid query parameter: sort"));
         }
 
-        return repository.listPosts(normalizedType, normalizedSort, page, limit);
+        return repository.listPosts(normalizedType, normalizedSort, page, limit, viewerUserId);
     }
 
     public Future<JsonObject> createPost(long authorId, JsonObject body) {
@@ -48,8 +48,8 @@ public class PostService {
         return repository.createPost(authorId, postType, title, content);
     }
 
-    public Future<JsonObject> getPostDetail(long postId) {
-        return repository.findPostById(postId).compose(post -> {
+    public Future<JsonObject> getPostDetail(long postId, Long viewerUserId) {
+        return repository.findPostById(postId, viewerUserId).compose(post -> {
             if (post == null) {
                 return Future.failedFuture(new ApiException(404, "post not found"));
             }

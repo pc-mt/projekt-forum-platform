@@ -10,6 +10,8 @@
 </head>
 <body>
 
+<div class="widgets-backdrop" id="widgets-backdrop" onclick="closeWidgetsPanel()"></div>
+
 <!-- ─── NAVBAR ─── -->
 <nav class="navbar">
   <a class="nav-logo" onclick="navigate('feed')">
@@ -46,6 +48,9 @@
   </div>
 
   <div class="nav-right" id="nav-right">
+    <button class="widgets-toggle" id="widgets-toggle" onclick="toggleWidgetsPanel()" aria-label="Widgets anzeigen">
+      <span></span><span></span><span></span>
+    </button>
     <button class="btn btn-ghost btn-sm" onclick="openModal('login')">Anmelden</button>
     <button class="btn btn-gold btn-sm" onclick="openModal('register')">Registrieren</button>
   </div>
@@ -56,22 +61,22 @@
   <button class="sidebar-item active" onclick="setFilter('all');setSidebarActive(this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
     Alle Beitraege
-    <span class="sidebar-badge" id="badge-all">12</span>
+    <span class="sidebar-badge" id="badge-all">-</span>
   </button>
   <button class="sidebar-item" onclick="setFilter('news');setSidebarActive(this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>
     Neuigkeiten
-    <span class="sidebar-badge">4</span>
+    <span class="sidebar-badge" id="badge-news">-</span>
   </button>
   <button class="sidebar-item" onclick="setFilter('idea');setSidebarActive(this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
     Ideen
-    <span class="sidebar-badge">5</span>
+    <span class="sidebar-badge" id="badge-idea">-</span>
   </button>
   <button class="sidebar-item" onclick="setFilter('discussion');setSidebarActive(this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
     Diskussionen
-    <span class="sidebar-badge">3</span>
+    <span class="sidebar-badge" id="badge-discussion">-</span>
   </button>
 
   <div class="sidebar-section">
@@ -80,7 +85,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
       Mein Profil
     </button>
-    <button class="sidebar-item" onclick="navigate('admin');setSidebarActive(this)">
+    <button class="sidebar-item" id="sidebar-admin-link" onclick="navigate('admin');setSidebarActive(this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       Admin Dashboard
       <span class="sidebar-badge" style="background:rgba(201,168,76,0.15);color:var(--gold);">ADMIN</span>
@@ -136,10 +141,10 @@
             Community
           </div>
           <div class="stats-grid">
-            <div class="stat-box"><div class="stat-num">1.2k</div><div class="stat-label">Membres</div></div>
-            <div class="stat-box"><div class="stat-num">247</div><div class="stat-label">Posts</div></div>
-            <div class="stat-box"><div class="stat-num">89</div><div class="stat-label">Actifs / jour</div></div>
-            <div class="stat-box"><div class="stat-num">4.8k</div><div class="stat-label">Votes</div></div>
+            <div class="stat-box"><div class="stat-num" id="community-members">-</div><div class="stat-label">Mitglieder</div></div>
+            <div class="stat-box"><div class="stat-num" id="community-posts">-</div><div class="stat-label">Posts</div></div>
+            <div class="stat-box"><div class="stat-num" id="community-comments">-</div><div class="stat-label">Kommentare</div></div>
+            <div class="stat-box"><div class="stat-num" id="community-votes">-</div><div class="stat-label">Votes</div></div>
           </div>
         </div>
 
@@ -148,21 +153,11 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             Trending
           </div>
-          <div class="trending-item" onclick="openPost(10)">
-            <div class="trending-rank">1</div>
-            <div class="trending-info"><div class="trending-title">Official Release DMTree Community</div><small>aus Feed / DB</small></div>
-          </div>
-          <div class="trending-item" onclick="openPost(11)">
-            <div class="trending-rank">2</div>
-            <div class="trending-info"><div class="trending-title">Slack Notification Integration</div><small>aus Feed / DB</small></div>
-          </div>
-          <div class="trending-item" onclick="openPost(13)">
-            <div class="trending-rank">3</div>
-            <div class="trending-info"><div class="trending-title">Analytics Dashboard v2</div><small>aus Feed / DB</small></div>
-          </div>
-          <div class="trending-item" onclick="openPost(12)">
-            <div class="trending-rank">4</div>
-            <div class="trending-info"><div class="trending-title">Onboarding Verbesserung</div><small>aus Feed / DB</small></div>
+          <div id="trending-list">
+            <div class="trending-item">
+              <div class="trending-rank">-</div>
+              <div class="trending-info"><div class="trending-title">Wird geladen...</div><small>-</small></div>
+            </div>
           </div>
         </div>
 
@@ -383,6 +378,7 @@
 </div>
 
 <script src="user.js"></script>
+<script src="vote.js"></script>
 <script src="comment.js"></script>
 <script src="post.js"></script>
 <script src="app.js"></script>

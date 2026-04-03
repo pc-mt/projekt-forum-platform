@@ -39,24 +39,46 @@
       .toUpperCase();
   }
 
+  const WIDGETS_TOGGLE = `
+    <button class="widgets-toggle" id="widgets-toggle" onclick="toggleWidgetsPanel()" aria-label="Widgets anzeigen">
+      <span></span><span></span><span></span>
+    </button>`;
+
+  function applyRoleVisibility() {
+    const role = (userState.currentUser?.role || "user").toLowerCase();
+    const isAdmin = userState.isLoggedIn && role === "admin";
+
+    const navAdmin = document.getElementById("nav-admin");
+    const sidebarAdmin = document.getElementById("sidebar-admin-link");
+    const adminPage = document.getElementById("page-admin");
+
+    if (navAdmin) navAdmin.style.display = isAdmin ? "" : "none";
+    if (sidebarAdmin) sidebarAdmin.style.display = isAdmin ? "" : "none";
+    if (adminPage) adminPage.style.display = isAdmin ? "" : "none";
+  }
+
   function updateNavLoggedIn() {
     const nav = document.getElementById("nav-right");
     if (!nav) return;
     const firstName = (userState.currentUser?.name || "User").split(" ")[0];
     const initials = userState.currentUser?.initials || "U";
     nav.innerHTML = `
+      ${WIDGETS_TOGGLE}
       <span style="font-size:0.82rem;color:var(--text2);">Hallo, <strong>${firstName}</strong></span>
       <div class="avatar" onclick="navigate('profile')" title="Mein Profil">${initials}</div>
     `;
+    applyRoleVisibility();
   }
 
   function updateNavLoggedOut() {
     const nav = document.getElementById("nav-right");
     if (!nav) return;
     nav.innerHTML = `
+      ${WIDGETS_TOGGLE}
       <button class="btn btn-ghost btn-sm" onclick="openModal('login')">Anmelden</button>
       <button class="btn btn-gold btn-sm" onclick="openModal('register')">Registrieren</button>
     `;
+    applyRoleVisibility();
   }
 
   function applyProfileToUi(payload) {
@@ -149,6 +171,7 @@
     userState.profile = null;
     userState.isLoggedIn = false;
     updateNavLoggedOut();
+    applyRoleVisibility();
     if (typeof window.navigate === "function") window.navigate("feed");
     window.showToast?.("Abgemeldet", "success");
   };
@@ -209,10 +232,13 @@
       };
       userState.isLoggedIn = true;
       updateNavLoggedIn();
+      applyRoleVisibility();
       window.loadProfileData();
     } catch {
       window.logout();
     }
   })();
+
+  applyRoleVisibility();
 })();
 

@@ -22,6 +22,8 @@
       initials: initials(author.fullName),
       date: node.createdAt || '',
       score: node.stats?.score ?? 0,
+      likes: node.stats?.likes ?? Math.max(0, node.stats?.score ?? 0),
+      dislikes: node.stats?.dislikes ?? Math.max(0, -(node.stats?.score ?? 0)),
       userVote: node.viewerVote === 'up' ? 1 : node.viewerVote === 'down' ? -1 : 0,
       replies
     };
@@ -52,8 +54,8 @@
         </div>
         <div class="comment-body">${c.body}</div>
         <div class="comment-actions">
-          <span class="comment-action" onclick="voteComment(${postId},${c.id},1)">👍 Like (${c.score})</span>
-          <span class="comment-action" onclick="voteComment(${postId},${c.id},-1)">👎 Dislike</span>
+          <span class="comment-action ${c.userVote===1?'active-like':''}" onclick="voteComment(${postId},${c.id},1)">👍 Like (${c.likes ?? 0})</span>
+          <span class="comment-action ${c.userVote===-1?'active-dislike':''}" onclick="voteComment(${postId},${c.id},-1)">👎 Dislike (${c.dislikes ?? 0})</span>
           <span class="comment-action" onclick="toggleReplyBox('${replyBoxId}')">↩️ Antworten</span>
         </div>
         <div id="${replyBoxId}" style="display:none;margin-top:8px;">
@@ -126,23 +128,12 @@
   }
 
   async function voteComment(postId, commentId, dir) {
-    if (!window.userState?.isLoggedIn) {
-      window.showToast?.('Bitte zuerst anmelden', 'error');
-      window.openModal?.('login');
-      return;
+    if (window.voteApi?.voteComment) {
+      const ok = await window.voteApi.voteComment(postId, commentId, dir);
+      if (ok) {
+        window.openPost?.(postId);
+      }
     }
-    const voteType = dir === 1 ? 'up' : 'down';
-    const res = await fetch(`/api/comments/${commentId}/vote`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ voteType })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      window.showToast?.(data.error || `HTTP ${res.status}`, 'error');
-      return;
-    }
-    window.openPost?.(postId);
   }
 
   function toggleReplyBox(id) {

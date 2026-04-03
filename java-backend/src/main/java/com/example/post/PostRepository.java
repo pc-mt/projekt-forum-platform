@@ -47,12 +47,14 @@ public class PostRepository {
                 .map(rows -> rows.iterator().hasNext() ? toCreatedPost(rows.iterator().next()) : null);
     }
 
-    public Future<JsonObject> findPostById(long postId) {
+    public Future<JsonObject> findPostById(long postId, Long viewerUserId) {
         String sql = """
                 SELECT
                     p.id, p.post_type, p.title, p.content, p.is_pinned, p.status, p.created_at,
                     u.id AS author_id, u.full_name, u.role, u.avatar_url,
-                    COALESCE(SUM(CASE WHEN v.vote_type='up' THEN 1 WHEN v.vote_type='down' THEN -1 ELSE 0 END), 0) AS score,
+                    COUNT(DISTINCT CASE WHEN v.vote_type='up' THEN v.id END) AS likes,
+                    COUNT(DISTINCT CASE WHEN v.vote_type='down' THEN v.id END) AS dislikes,
+                    MAX(CASE WHEN v.user_id = ? THEN v.vote_type ELSE NULL END) AS viewer_vote,
                     COUNT(DISTINCT c.id) AS comments_count
                 FROM posts p
                 JOIN users u ON u.id = p.author_id
@@ -62,11 +64,11 @@ public class PostRepository {
                 GROUP BY p.id, p.post_type, p.title, p.content, p.is_pinned, p.status, p.created_at, u.id, u.full_name, u.role, u.avatar_url
                 """;
         return pool.preparedQuery(sql)
-                .execute(Tuple.of(postId))
+                .execute(Tuple.of(viewerUserId == null ? -1L : viewerUserId, postId))
                 .map(rows -> rows.iterator().hasNext() ? toPostDetail(rows.iterator().next()) : null);
     }
 
-    public Future<JsonObject> listPosts(String type, String sort, int page, int limit) {
+    public Future<JsonObject> listPosts(String type, String sort, int page, int limit, Long viewerUserId) {
         int safePage = Math.max(1, page);
         int safeLimit = Math.max(1, Math.min(limit, 100));
         int offset = (safePage - 1) * safeLimit;
@@ -80,7 +82,7 @@ public class PostRepository {
 
         String orderBy;
         if ("popular".equals(sort)) {
-            orderBy = " ORDER BY score DESC, p.created_at DESC ";
+            orderBy = " ORDER BY likes DESC, dislikes ASC, p.created_at DESC ";
         } else if ("comments".equals(sort)) {
             orderBy = " ORDER BY comments_count DESC, p.created_at DESC ";
         } else {
@@ -101,7 +103,9 @@ public class PostRepository {
                     u.full_name,
                     u.role,
                     u.avatar_url,
-                    COALESCE(SUM(CASE WHEN v.vote_type='up' THEN 1 WHEN v.vote_type='down' THEN -1 ELSE 0 END), 0) AS score,
+                    COUNT(DISTINCT CASE WHEN v.vote_type='up' THEN v.id END) AS likes,
+                    COUNT(DISTINCT CASE WHEN v.vote_type='down' THEN v.id END) AS dislikes,
+                    MAX(CASE WHEN v.user_id = ? THEN v.vote_type ELSE NULL END) AS viewer_vote,
                     COUNT(DISTINCT c.id) AS comments_count
                 FROM posts p
                 JOIN users u ON u.id = p.author_id
@@ -115,7 +119,9 @@ public class PostRepository {
 
         String countSql = "SELECT COUNT(*) AS total FROM posts p " + where;
 
-        List<Object> listParams = new ArrayList<>(params);
+        List<Object> listParams = new ArrayList<>();
+        listParams.add(viewerUserId == null ? -1L : viewerUserId);
+        listParams.addAll(params);
         listParams.add(safeLimit);
         listParams.add(offset);
 
@@ -160,9 +166,11 @@ public class PostRepository {
                         .put("role", row.getString("role"))
                         .put("avatarUrl", row.getString("avatar_url")))
                 .put("stats", new JsonObject()
-                        .put("score", row.getInteger("score"))
+                        .put("score", row.getInteger("likes") - row.getInteger("dislikes"))
+                        .put("likes", row.getInteger("likes"))
+                        .put("dislikes", row.getInteger("dislikes"))
                         .put("commentsCount", row.getInteger("comments_count")))
-                .put("viewerVote", (Object) null);
+                .put("viewerVote", row.getString("viewer_vote"));
     }
 
     private JsonObject toPostDetail(Row row) {
@@ -180,9 +188,11 @@ public class PostRepository {
                         .put("role", row.getString("role"))
                         .put("avatarUrl", row.getString("avatar_url")))
                 .put("stats", new JsonObject()
-                        .put("score", row.getInteger("score"))
+                        .put("score", row.getInteger("likes") - row.getInteger("dislikes"))
+                        .put("likes", row.getInteger("likes"))
+                        .put("dislikes", row.getInteger("dislikes"))
                         .put("commentsCount", row.getInteger("comments_count")))
-                .put("viewerVote", (Object) null);
+                .put("viewerVote", row.getString("viewer_vote"));
     }
 
     private JsonObject toCreatedPost(Row row) {

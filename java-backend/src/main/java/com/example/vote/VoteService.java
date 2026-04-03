@@ -20,8 +20,14 @@ public class VoteService {
             if (!exists) {
                 return Future.failedFuture(new ApiException(404, "post not found"));
             }
-            return repository.upsertPostVote(postId, userId, voteType)
-                    .compose(v -> repository.getPostVoteStats(postId, userId));
+            return repository.findUserPostVote(postId, userId).compose(currentVote -> {
+                if (voteType.equals(currentVote)) {
+                    return repository.deletePostVote(postId, userId)
+                            .compose(v -> repository.getPostVoteStats(postId, userId));
+                }
+                return repository.upsertPostVote(postId, userId, voteType)
+                        .compose(v -> repository.getPostVoteStats(postId, userId));
+            });
         });
     }
 

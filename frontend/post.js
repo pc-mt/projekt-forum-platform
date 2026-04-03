@@ -3,6 +3,9 @@ let currentFilter = 'all';
 let currentSort = 'popular';
 let openPostId = null;
 let posts = [];
+let globalCounts = { all: 0, news: 0, idea: 0, discussion: 0, comments: 0, votes: 0 };
+
+window.getPostById = (id) => posts.find((x) => x.id === id);
 
 function getAuthHeaders() {
   const headers = { 'Content-Type': 'application/json' };
@@ -37,6 +40,8 @@ function mapPostDto(item) {
     avTextColor: 'var(--green)',
     date: item.createdAt || '',
     score: item.stats?.score ?? 0,
+    likes: item.stats?.likes ?? Math.max(0, item.stats?.score ?? 0),
+    dislikes: item.stats?.dislikes ?? Math.max(0, -(item.stats?.score ?? 0)),
     userVote: item.viewerVote === 'up' ? 1 : item.viewerVote === 'down' ? -1 : 0,
     comments: [],
     commentsCount: item.stats?.commentsCount ?? 0
@@ -44,15 +49,79 @@ function mapPostDto(item) {
 }
 
 async function refreshFeed() {
+  await refreshGlobalCounts();
   const params = new URLSearchParams();
   if (currentFilter !== 'all') params.set('type', currentFilter);
   params.set('sort', currentSort);
-  const res = await fetch(`/api/posts?${params.toString()}`);
+  const res = await fetch(`/api/posts?${params.toString()}`, {
+    headers: getAuthHeaders()
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   posts = (data.items || []).map(mapPostDto);
+  window.posts = posts;
+  updateFeedWidgets();
   renderPosts();
   renderAdminTable();
+}
+
+async function refreshGlobalCounts() {
+  const res = await fetch('/api/posts?sort=recent&limit=200', {
+    headers: getAuthHeaders()
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return;
+  const allPosts = (data.items || []).map(mapPostDto);
+  globalCounts = {
+    all: allPosts.length,
+    news: allPosts.filter((p) => p.type === 'news').length,
+    idea: allPosts.filter((p) => p.type === 'idea').length,
+    discussion: allPosts.filter((p) => p.type === 'discussion').length,
+    comments: allPosts.reduce((acc, p) => acc + (p.commentsCount || 0), 0),
+    votes: allPosts.reduce((acc, p) => acc + (p.likes || 0) + (p.dislikes || 0), 0)
+  };
+}
+
+function updateFeedWidgets() {
+  const setText = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(val);
+  };
+
+  setText('badge-all', globalCounts.all);
+  setText('badge-news', globalCounts.news);
+  setText('badge-idea', globalCounts.idea);
+  setText('badge-discussion', globalCounts.discussion);
+
+  setText('community-members', '-');
+  setText('community-posts', globalCounts.all);
+  setText('community-comments', globalCounts.comments);
+  setText('community-votes', globalCounts.votes);
+
+  const trending = document.getElementById('trending-list');
+  if (trending) {
+    const top = [...posts]
+      .sort((a, b) => (b.likes || 0) - (a.likes || 0))
+      .slice(0, 4);
+    if (!top.length) {
+      trending.innerHTML = `
+        <div class="trending-item">
+          <div class="trending-rank">-</div>
+          <div class="trending-info"><div class="trending-title">Keine Daten</div><small>-</small></div>
+        </div>
+      `;
+    } else {
+      trending.innerHTML = top.map((p, idx) => `
+        <div class="trending-item" onclick="openPost(${p.id})">
+          <div class="trending-rank">${idx + 1}</div>
+          <div class="trending-info">
+            <div class="trending-title">${p.title}</div>
+            <small>${p.likes || 0} likes · ${p.commentsCount || 0} Kommentare</small>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
 }
 
 function renderPosts(){
@@ -78,10 +147,11 @@ function renderPosts(){
         <button class="vote-btn up ${p.userVote===1?'active':''}" onclick="vote(${p.id},1)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
         </button>
-        <span class="score ${p.score>0?'positive':p.score<0?'negative':''}">${p.score}</span>
+        <span class="score">(${p.likes ?? 0})</span>
         <button class="vote-btn down ${p.userVote===-1?'active':''}" onclick="vote(${p.id},-1)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
+        <span class="score">(${p.dislikes ?? 0})</span>
         <div class="post-action" onclick="openPost(${p.id})">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           ${p.commentsCount} Kommentar${p.commentsCount!==1?'s':''}
@@ -127,32 +197,8 @@ function renderProfile(){
 }
 
 async function vote(id, dir){
-  const p = posts.find(x=>x.id===id);
-  if(!p) return;
-  if (!window.userState?.isLoggedIn) {
-    showToast('Bitte zuerst anmelden', 'error');
-    openModal('login');
-    return;
-  }
-  try {
-    const voteType = dir === 1 ? 'up' : 'down';
-    const res = await fetch(`/api/posts/${id}/vote`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ voteType })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      showToast(data.error || `HTTP ${res.status}`, 'error');
-      return;
-    }
-    p.score = data.score ?? p.score;
-    p.userVote = data.viewerVote === 'up' ? 1 : data.viewerVote === 'down' ? -1 : 0;
-    renderPosts();
-    if(openPostId===id) openPost(id);
-    showToast(dir===1?'Like gespeichert ✓':'Dislike gespeichert ✓','success');
-  } catch {
-    showToast('Netzwerkfehler beim Abstimmen', 'error');
+  if (window.voteApi?.votePost) {
+    await window.voteApi.votePost(id, dir);
   }
 }
 
@@ -179,7 +225,7 @@ function deletePost(id, e){
 async function openPost(id){
   let p = posts.find(x=>x.id===id);
   try {
-    const res = await fetch(`/api/posts/${id}`);
+    const res = await fetch(`/api/posts/${id}`, { headers: getAuthHeaders() });
     if (!res.ok) {
       showToast('Beitrag nicht gefunden', 'error');
       return;
@@ -188,8 +234,10 @@ async function openPost(id){
     if (p) {
       p.content = detail.content || p.excerpt;
       p.score = detail.stats?.score ?? p.score;
+      p.likes = detail.stats?.likes ?? p.likes;
+      p.dislikes = detail.stats?.dislikes ?? p.dislikes;
       p.commentsCount = detail.stats?.commentsCount ?? p.commentsCount;
-      p.userVote = detail.viewerVote === 'up' ? 1 : detail.viewerVote === 'down' ? -1 : p.userVote;
+      p.userVote = detail.viewerVote === 'up' ? 1 : detail.viewerVote === 'down' ? -1 : 0;
     } else {
       p = mapPostDto({
         id: detail.id,
@@ -218,6 +266,7 @@ async function openPost(id){
   }
 
   openPostId = id;
+  window.openPostId = id;
   const panel = document.getElementById('detail-panel');
   const adminBtns = document.getElementById('detail-admin-btns');
 
@@ -231,8 +280,9 @@ async function openPost(id){
     <div class="detail-title">${p.title}</div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
       <button class="vote-btn up ${p.userVote===1?'active':''}" onclick="vote(${p.id},1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></button>
-      <span class="score ${p.score>0?'positive':p.score<0?'negative':''}" style="font-size:1rem;">${p.score}</span>
+      <span class="score" style="font-size:0.95rem;">(${p.likes ?? 0})</span>
       <button class="vote-btn down ${p.userVote===-1?'active':''}" onclick="vote(${p.id},-1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg></button>
+      <span class="score" style="font-size:0.95rem;">(${p.dislikes ?? 0})</span>
     </div>
     <div class="detail-body">${p.content || p.excerpt}</div>
     <div class="comments-section">
@@ -251,10 +301,14 @@ async function openPost(id){
 function closeDetail(){
   document.getElementById('detail-panel').classList.remove('open');
   openPostId = null;
+  window.openPostId = null;
 }
 
 function setFilter(type){
   currentFilter = type;
+  if (typeof navigate === 'function') {
+    navigate('feed');
+  }
   refreshFeed().catch(e => showToast(e.message, 'error'));
 }
 
@@ -313,3 +367,4 @@ async function submitPost(){
 }
 
 window.openPost = openPost;
+window.renderPosts = renderPosts;

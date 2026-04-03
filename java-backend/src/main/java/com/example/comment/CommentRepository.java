@@ -66,6 +66,8 @@ public class CommentRepository {
                     c.id, c.post_id, c.parent_comment_id, c.content, c.created_at,
                     u.id AS author_id, u.full_name, u.role, u.avatar_url,
                     COALESCE(SUM(CASE WHEN cv.vote_type='up' THEN 1 WHEN cv.vote_type='down' THEN -1 ELSE 0 END), 0) AS score,
+                    COALESCE(SUM(CASE WHEN cv.vote_type='up' THEN 1 ELSE 0 END), 0) AS likes,
+                    COALESCE(SUM(CASE WHEN cv.vote_type='down' THEN 1 ELSE 0 END), 0) AS dislikes,
                     MAX(CASE WHEN cv.user_id = ? THEN cv.vote_type ELSE NULL END) AS viewer_vote
                 FROM comments c
                 JOIN users u ON u.id = c.author_id
@@ -112,10 +114,24 @@ public class CommentRepository {
         return pool.preparedQuery(sql).execute(Tuple.of(commentId, userId, voteType)).mapEmpty();
     }
 
+    public Future<String> findUserCommentVote(long commentId, long userId) {
+        return pool.preparedQuery("SELECT vote_type FROM comment_votes WHERE comment_id = ? AND user_id = ?")
+                .execute(Tuple.of(commentId, userId))
+                .map(rows -> rows.iterator().hasNext() ? rows.iterator().next().getString("vote_type") : null);
+    }
+
+    public Future<Void> deleteCommentVote(long commentId, long userId) {
+        return pool.preparedQuery("DELETE FROM comment_votes WHERE comment_id = ? AND user_id = ?")
+                .execute(Tuple.of(commentId, userId))
+                .mapEmpty();
+    }
+
     public Future<JsonObject> getCommentVoteStats(long commentId, long viewerUserId) {
         String sql = """
                 SELECT
                     COALESCE(SUM(CASE WHEN cv.vote_type='up' THEN 1 WHEN cv.vote_type='down' THEN -1 ELSE 0 END), 0) AS score,
+                    COALESCE(SUM(CASE WHEN cv.vote_type='up' THEN 1 ELSE 0 END), 0) AS likes,
+                    COALESCE(SUM(CASE WHEN cv.vote_type='down' THEN 1 ELSE 0 END), 0) AS dislikes,
                     MAX(CASE WHEN cv.user_id = ? THEN cv.vote_type ELSE NULL END) AS viewer_vote
                 FROM comment_votes cv
                 WHERE cv.comment_id = ?
@@ -124,6 +140,8 @@ public class CommentRepository {
             Row row = rows.iterator().next();
             return new JsonObject()
                     .put("score", row.getInteger("score"))
+                    .put("likes", row.getInteger("likes"))
+                    .put("dislikes", row.getInteger("dislikes"))
                     .put("viewerVote", row.getString("viewer_vote"));
         });
     }
@@ -144,7 +162,10 @@ public class CommentRepository {
 
     private JsonObject toCommentWithVote(Row row) {
         return toComment(row)
-                .put("stats", new JsonObject().put("score", row.getInteger("score")))
+                .put("stats", new JsonObject()
+                        .put("score", row.getInteger("score"))
+                        .put("likes", row.getInteger("likes"))
+                        .put("dislikes", row.getInteger("dislikes")))
                 .put("viewerVote", row.getString("viewer_vote"));
     }
 }
