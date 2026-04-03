@@ -48,6 +48,7 @@ public class PostRepository {
     }
 
     public Future<JsonObject> findPostById(long postId, Long viewerUserId) {
+        long viewer = viewerUserId == null ? -1L : viewerUserId;
         String sql = """
                 SELECT
                     p.id, p.post_type, p.title, p.content, p.is_pinned, p.status, p.created_at,
@@ -55,16 +56,18 @@ public class PostRepository {
                     COUNT(DISTINCT CASE WHEN v.vote_type='up' THEN v.id END) AS likes,
                     COUNT(DISTINCT CASE WHEN v.vote_type='down' THEN v.id END) AS dislikes,
                     MAX(CASE WHEN v.user_id = ? THEN v.vote_type ELSE NULL END) AS viewer_vote,
+                    MAX(upp.post_id) AS viewer_pin_id,
                     COUNT(DISTINCT c.id) AS comments_count
                 FROM posts p
                 JOIN users u ON u.id = p.author_id
                 LEFT JOIN votes v ON v.post_id = p.id
+                LEFT JOIN user_post_pins upp ON upp.post_id = p.id AND upp.user_id = ?
                 LEFT JOIN comments c ON c.post_id = p.id AND c.status = 'visible'
                 WHERE p.id = ? AND p.status = 'published'
                 GROUP BY p.id, p.post_type, p.title, p.content, p.is_pinned, p.status, p.created_at, u.id, u.full_name, u.role, u.avatar_url
                 """;
         return pool.preparedQuery(sql)
-                .execute(Tuple.of(viewerUserId == null ? -1L : viewerUserId, postId))
+                .execute(Tuple.of(viewer, viewer, postId))
                 .map(rows -> rows.iterator().hasNext() ? toPostDetail(rows.iterator().next()) : null);
     }
 
@@ -82,11 +85,11 @@ public class PostRepository {
 
         String orderBy;
         if ("popular".equals(sort)) {
-            orderBy = " ORDER BY likes DESC, dislikes ASC, p.created_at DESC ";
+            orderBy = " ORDER BY p.is_pinned DESC, likes DESC, dislikes ASC, p.created_at DESC ";
         } else if ("comments".equals(sort)) {
-            orderBy = " ORDER BY comments_count DESC, p.created_at DESC ";
+            orderBy = " ORDER BY p.is_pinned DESC, comments_count DESC, p.created_at DESC ";
         } else {
-            orderBy = " ORDER BY p.created_at DESC ";
+            orderBy = " ORDER BY p.is_pinned DESC, p.created_at DESC ";
         }
 
         String listSql = """
@@ -106,10 +109,12 @@ public class PostRepository {
                     COUNT(DISTINCT CASE WHEN v.vote_type='up' THEN v.id END) AS likes,
                     COUNT(DISTINCT CASE WHEN v.vote_type='down' THEN v.id END) AS dislikes,
                     MAX(CASE WHEN v.user_id = ? THEN v.vote_type ELSE NULL END) AS viewer_vote,
+                    MAX(upp.post_id) AS viewer_pin_id,
                     COUNT(DISTINCT c.id) AS comments_count
                 FROM posts p
                 JOIN users u ON u.id = p.author_id
                 LEFT JOIN votes v ON v.post_id = p.id
+                LEFT JOIN user_post_pins upp ON upp.post_id = p.id AND upp.user_id = ?
                 LEFT JOIN comments c ON c.post_id = p.id AND c.status = 'visible'
                 """ + where + """
                 GROUP BY p.id, p.post_type, p.title, p.content, p.is_pinned, p.status, p.created_at, p.updated_at, u.id, u.full_name, u.role, u.avatar_url
@@ -119,8 +124,10 @@ public class PostRepository {
 
         String countSql = "SELECT COUNT(*) AS total FROM posts p " + where;
 
+        long viewer = viewerUserId == null ? -1L : viewerUserId;
         List<Object> listParams = new ArrayList<>();
-        listParams.add(viewerUserId == null ? -1L : viewerUserId);
+        listParams.add(viewer);
+        listParams.add(viewer);
         listParams.addAll(params);
         listParams.add(safeLimit);
         listParams.add(offset);
@@ -147,6 +154,44 @@ public class PostRepository {
         });
     }
 
+    public Future<JsonObject> toggleViewerPin(long userId, long postId) {
+        return pool.preparedQuery("SELECT id FROM posts WHERE id = ? AND status = 'published'")
+                .execute(Tuple.of(postId))
+                .compose(rows -> {
+                    if (!rows.iterator().hasNext()) {
+                        return Future.failedFuture(new PostNotFoundException());
+                    }
+                    return pool.preparedQuery(
+                            "SELECT post_id FROM user_post_pins WHERE user_id = ? AND post_id = ?")
+                            .execute(Tuple.of(userId, postId))
+                            .compose(pinRows -> {
+                                if (pinRows.iterator().hasNext()) {
+                                    return pool.preparedQuery(
+                                            "DELETE FROM user_post_pins WHERE user_id = ? AND post_id = ?")
+                                            .execute(Tuple.of(userId, postId))
+                                            .mapEmpty()
+                                            .map(v -> new JsonObject().put("viewerPinned", false));
+                                }
+                                return pool.preparedQuery(
+                                """
+                                        INSERT INTO user_post_pins (user_id, post_id) VALUES (?, ?)
+                                        """)
+                                        .execute(Tuple.of(userId, postId))
+                                        .mapEmpty()
+                                        .map(v -> new JsonObject().put("viewerPinned", true));
+                            });
+                });
+    }
+
+    public Future<Boolean> updatePostPinned(long postId, boolean pinned) {
+        String sql = """
+                UPDATE posts SET is_pinned = ? WHERE id = ? AND status = 'published'
+                """;
+        return pool.preparedQuery(sql)
+                .execute(Tuple.of(pinned, postId))
+                .map(rows -> rows.rowCount() > 0);
+    }
+
     private JsonObject toFeedItem(Row row) {
         String content = row.getString("content");
         String preview = content == null ? "" : (content.length() > 140 ? content.substring(0, 140) + "..." : content);
@@ -170,7 +215,8 @@ public class PostRepository {
                         .put("likes", row.getInteger("likes"))
                         .put("dislikes", row.getInteger("dislikes"))
                         .put("commentsCount", row.getInteger("comments_count")))
-                .put("viewerVote", row.getString("viewer_vote"));
+                .put("viewerVote", row.getString("viewer_vote"))
+                .put("viewerPinned", row.getValue("viewer_pin_id") != null);
     }
 
     private JsonObject toPostDetail(Row row) {
@@ -192,7 +238,8 @@ public class PostRepository {
                         .put("likes", row.getInteger("likes"))
                         .put("dislikes", row.getInteger("dislikes"))
                         .put("commentsCount", row.getInteger("comments_count")))
-                .put("viewerVote", row.getString("viewer_vote"));
+                .put("viewerVote", row.getString("viewer_vote"))
+                .put("viewerPinned", row.getValue("viewer_pin_id") != null);
     }
 
     private JsonObject toCreatedPost(Row row) {
@@ -213,5 +260,9 @@ public class PostRepository {
 
     private String stringify(Object value) {
         return value == null ? null : value.toString();
+    }
+
+    public static final class PostNotFoundException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
     }
 }

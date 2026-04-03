@@ -18,6 +18,7 @@ function toggleWidgetsPanel(){
   if(!panel || !backdrop) return;
   panel.classList.toggle('open');
   backdrop.classList.toggle('open');
+  if(panel.classList.contains('open')) closeSidebar();
 }
 
 function closeWidgetsPanel(){
@@ -26,6 +27,33 @@ function closeWidgetsPanel(){
   if(!panel || !backdrop) return;
   panel.classList.remove('open');
   backdrop.classList.remove('open');
+}
+
+function toggleSidebar(){
+  const sb = document.querySelector('.sidebar');
+  const bd = document.getElementById('sidebar-backdrop');
+  const btn = document.getElementById('sidebar-toggle');
+  if(!sb || !bd) return;
+  const willOpen = !sb.classList.contains('open');
+  sb.classList.toggle('open', willOpen);
+  bd.classList.toggle('open', willOpen);
+  if(btn) {
+    btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    btn.setAttribute('aria-label', willOpen ? 'Menü schliessen' : 'Menü öffnen');
+  }
+  closeWidgetsPanel();
+}
+
+function closeSidebar(){
+  const sb = document.querySelector('.sidebar');
+  const bd = document.getElementById('sidebar-backdrop');
+  const btn = document.getElementById('sidebar-toggle');
+  sb?.classList.remove('open');
+  bd?.classList.remove('open');
+  if(btn) {
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-label', 'Menü öffnen');
+  }
 }
 
 function navigate(page){
@@ -43,6 +71,7 @@ function navigate(page){
   document.querySelectorAll('.nav-link').forEach(l=>{ l.classList.toggle('active', l.id==='nav-'+page); });
   closeDetail();
   closeWidgetsPanel();
+  closeSidebar();
   if(page==='admin') renderAdminTable();
   if(page==='profile') {
     if (typeof window.loadProfileData === 'function') window.loadProfileData();
@@ -67,3 +96,14 @@ if (typeof refreshFeed === 'function') {
 if (typeof renderProfile === 'function') {
   renderProfile();
 }
+
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 768) closeSidebar();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeSidebar();
+    closeWidgetsPanel();
+  }
+});

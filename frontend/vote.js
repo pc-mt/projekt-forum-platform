@@ -14,7 +14,7 @@
       return false;
     }
     const voteType = dir === 1 ? 'up' : 'down';
-    const res = await fetch(`/api/posts/${postId}/vote`, {
+    const res = await fetch(window.apiUrl(`/api/posts/${postId}/vote`), {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ voteType })
@@ -42,7 +42,7 @@
       return false;
     }
     const voteType = dir === 1 ? 'up' : 'down';
-    const res = await fetch(`/api/comments/${commentId}/vote`, {
+    const res = await fetch(window.apiUrl(`/api/comments/${commentId}/vote`), {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ voteType })

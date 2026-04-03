@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<!-- Optional: eigenen API-Host (z. B. http://127.0.0.1:8080), wenn index.html nicht ueber denselben Host wie /api erreichbar ist -->
+<meta name="api-base" content=""/>
 <title>DMTree Community — Hub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet"/>
@@ -11,40 +13,20 @@
 <body>
 
 <div class="widgets-backdrop" id="widgets-backdrop" onclick="closeWidgetsPanel()"></div>
+<div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()" aria-hidden="true"></div>
 
 <!-- ─── NAVBAR ─── -->
 <nav class="navbar">
+  <button type="button" class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" aria-label="Menü öffnen" aria-expanded="false" aria-controls="sidebar">
+    <span></span><span></span><span></span>
+  </button>
   <a class="nav-logo" onclick="navigate('feed')">
-    <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="50" cy="50" r="48" fill="#1A1E28" stroke="#C9A84C" stroke-width="2"/>
-      <!-- Tree trunk -->
-      <rect x="46" y="58" width="8" height="24" rx="3" fill="#C9A84C"/>
-      <!-- Main branches -->
-      <path d="M50 58 L50 28" stroke="#C9A84C" stroke-width="4" stroke-linecap="round"/>
-      <!-- Left branches -->
-      <path d="M50 40 L34 26" stroke="#C9A84C" stroke-width="3" stroke-linecap="round"/>
-      <path d="M50 34 L38 20" stroke="#C9A84C" stroke-width="2.5" stroke-linecap="round"/>
-      <path d="M50 48 L30 38" stroke="#C9A84C" stroke-width="2" stroke-linecap="round"/>
-      <!-- Right branches -->
-      <path d="M50 40 L66 26" stroke="#C9A84C" stroke-width="3" stroke-linecap="round"/>
-      <path d="M50 34 L62 20" stroke="#C9A84C" stroke-width="2.5" stroke-linecap="round"/>
-      <path d="M50 48 L70 38" stroke="#C9A84C" stroke-width="2" stroke-linecap="round"/>
-      <!-- Leaves dots -->
-      <circle cx="34" cy="24" r="4" fill="#E8C96A"/>
-      <circle cx="38" cy="18" r="3.5" fill="#E8C96A"/>
-      <circle cx="66" cy="24" r="4" fill="#E8C96A"/>
-      <circle cx="62" cy="18" r="3.5" fill="#E8C96A"/>
-      <circle cx="50" cy="26" r="4.5" fill="#E8C96A"/>
-      <circle cx="28" cy="36" r="3" fill="#C9A84C"/>
-      <circle cx="72" cy="36" r="3" fill="#C9A84C"/>
-    </svg>
+    <img class="nav-logo-img" src="logo.png" alt="Logo" width="32" height="32" decoding="async"/>
     <span class="nav-logo-text">dm<span>tree</span></span>
   </a>
 
   <div class="nav-center">
-    <button class="nav-link active" id="nav-feed" onclick="navigate('feed')">🌐 Feed</button>
     <button class="nav-link" id="nav-admin" onclick="navigate('admin')">🛡️ Admin</button>
-    <button class="nav-link" id="nav-profile" onclick="navigate('profile')">👤 Profil</button>
   </div>
 
   <div class="nav-right" id="nav-right">
@@ -57,7 +39,7 @@
 </nav>
 
 <!-- ─── SIDEBAR ─── -->
-<div class="sidebar">
+<div class="sidebar" id="sidebar" role="navigation" aria-label="Hauptnavigation">
   <button class="sidebar-item active" onclick="setFilter('all');setSidebarActive(this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
     Alle Beitraege
@@ -90,6 +72,10 @@
       Admin Dashboard
       <span class="sidebar-badge" style="background:rgba(201,168,76,0.15);color:var(--gold);">ADMIN</span>
     </button>
+    <button type="button" class="sidebar-item" onclick="showPopularPosts()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Beliebteste Beiträge
+    </button>
   </div>
 
   <div class="sidebar-section">
@@ -112,16 +98,10 @@
           <p class="hero-sub">Austauschen, vorschlagen, abstimmen - dein zentrales Hub fuer organisationsuebergreifende Zusammenarbeit.</p>
         </div>
 
-        <div class="filter-bar">
-          <button class="filter-chip active" onclick="setFilterChip(this,'all')">Alle</button>
-          <button class="filter-chip" onclick="setFilterChip(this,'news')">📰 Neuigkeiten</button>
-          <button class="filter-chip" onclick="setFilterChip(this,'idea')">💡 Ideen</button>
-          <button class="filter-chip" onclick="setFilterChip(this,'discussion')">💬 Diskussionen</button>
-          <select class="sort-select" onchange="sortPosts(this.value)">
-            <option value="popular">🔥 Beliebtheit</option>
-            <option value="recent">🕒 Neueste</option>
-            <option value="comments">💬 Kommentare</option>
-          </select>
+        <div class="feed-search-wrap">
+          <label class="visually-hidden" for="feed-search">Beitraege durchsuchen</label>
+          <svg class="feed-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="search" id="feed-search" class="feed-search" placeholder="Beitraege durchsuchen…" autocomplete="off" oninput="applyFeedSearch()" />
         </div>
 
         <div class="create-bar" onclick="openModal('create')">
@@ -293,7 +273,11 @@
   <div class="detail-header">
     <button class="detail-back" onclick="closeDetail()">←</button>
     <span style="font-size:0.875rem;color:var(--text2);">Beitragsdetails</span>
-    <div style="margin-left:auto;display:flex;gap:8px;" id="detail-admin-btns"></div>
+    <div class="detail-header-actions">
+      <button type="button" class="btn btn-ghost btn-sm detail-pin-btn" id="detail-pin-btn" onclick="toggleMyPinFromDetail()" style="display:none;" aria-label="Fuer dich anheften">Anheften</button>
+      <button type="button" class="btn btn-ghost btn-sm detail-global-pin-btn" id="detail-global-pin-btn" onclick="toggleGlobalPinFromDetail()" style="display:none;" aria-label="Global anheften">Global anheften</button>
+      <div id="detail-admin-btns"></div>
+    </div>
   </div>
   <div class="detail-content" id="detail-content"></div>
 </div>
@@ -305,7 +289,7 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('login')">×</button>
     <div style="text-align:center;margin-bottom:20px;">
-      <svg width="40" height="40" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#1A1E28" stroke="#C9A84C" stroke-width="2"/><rect x="46" y="58" width="8" height="24" rx="3" fill="#C9A84C"/><path d="M50 58 L50 28" stroke="#C9A84C" stroke-width="4" stroke-linecap="round"/><path d="M50 40 L34 26" stroke="#C9A84C" stroke-width="3" stroke-linecap="round"/><path d="M50 34 L38 20" stroke="#C9A84C" stroke-width="2.5" stroke-linecap="round"/><path d="M50 48 L30 38" stroke="#C9A84C" stroke-width="2" stroke-linecap="round"/><path d="M50 40 L66 26" stroke="#C9A84C" stroke-width="3" stroke-linecap="round"/><path d="M50 34 L62 20" stroke="#C9A84C" stroke-width="2.5" stroke-linecap="round"/><path d="M50 48 L70 38" stroke="#C9A84C" stroke-width="2" stroke-linecap="round"/><circle cx="34" cy="24" r="4" fill="#E8C96A"/><circle cx="38" cy="18" r="3.5" fill="#E8C96A"/><circle cx="66" cy="24" r="4" fill="#E8C96A"/><circle cx="62" cy="18" r="3.5" fill="#E8C96A"/><circle cx="50" cy="26" r="4.5" fill="#E8C96A"/></svg>
+      <img class="modal-brand-logo" src="logo.png" alt="" width="40" height="40" decoding="async"/>
     </div>
     <div class="modal-title">Anmelden</div>
     <div class="modal-sub">Melde dich in deinem DMTree-Community-Bereich an.</div>
@@ -377,6 +361,26 @@
   <span id="toast-msg">Nachricht</span>
 </div>
 
+<script>
+(function () {
+  function resolveApiBase() {
+    var meta = document.querySelector('meta[name="api-base"]');
+    var c = meta && meta.getAttribute('content');
+    if (c != null && String(c).trim() !== '') {
+      return String(c).trim().replace(/\/$/, '');
+    }
+    if (window.location.protocol === 'file:') {
+      return 'http://127.0.0.1:8080';
+    }
+    return '';
+  }
+  window.__API_BASE__ = resolveApiBase();
+  window.apiUrl = function (path) {
+    var p = path.charAt(0) === '/' ? path : '/' + path;
+    return window.__API_BASE__ + p;
+  };
+})();
+</script>
 <script src="user.js"></script>
 <script src="vote.js"></script>
 <script src="comment.js"></script>

@@ -57,6 +57,27 @@ public class PostService {
         });
     }
 
+    public Future<JsonObject> toggleMyPin(long userId, long postId) {
+        return repository.toggleViewerPin(userId, postId).recover(err -> {
+            if (err instanceof PostRepository.PostNotFoundException) {
+                return Future.failedFuture(new ApiException(404, "post not found"));
+            }
+            return Future.failedFuture(err);
+        });
+    }
+
+    public Future<JsonObject> setPostPinned(long postId, boolean pinned, String role) {
+        if (role == null || !"admin".equalsIgnoreCase(role.trim())) {
+            return Future.failedFuture(new ApiException(403, "forbidden"));
+        }
+        return repository.updatePostPinned(postId, pinned).compose(updated -> {
+            if (!updated) {
+                return Future.failedFuture(new ApiException(404, "post not found"));
+            }
+            return Future.succeededFuture(new JsonObject().put("isPinned", pinned));
+        });
+    }
+
     private String normalize(String value) {
         if (value == null) {
             return null;

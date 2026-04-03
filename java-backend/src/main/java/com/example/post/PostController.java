@@ -53,6 +53,56 @@ public class PostController {
                 .onFailure(err -> handleFailure(ctx, err));
     }
 
+    public void handlePostToggleMyPin(RoutingContext ctx) {
+        Long userId = extractUserId(ctx);
+        if (userId == null) {
+            return;
+        }
+        long postId;
+        try {
+            postId = Long.parseLong(ctx.pathParam("id"));
+        } catch (Exception e) {
+            json(ctx, 400, new JsonObject().put("error", "invalid post id"));
+            return;
+        }
+        postService.toggleMyPin(userId, postId)
+                .onSuccess(result -> json(ctx, 200, result))
+                .onFailure(err -> handleFailure(ctx, err));
+    }
+
+    public void handlePatchPostPinned(RoutingContext ctx) {
+        String auth = ctx.request().getHeader("Authorization");
+        if (auth == null || !auth.startsWith("Bearer ")) {
+            json(ctx, 401, new JsonObject().put("error", "unauthorized"));
+            return;
+        }
+        String role;
+        try {
+            role = jwtUtils.verifyToken(auth.substring("Bearer ".length()).trim()).getClaim("role").asString();
+        } catch (Exception e) {
+            json(ctx, 401, new JsonObject().put("error", "unauthorized"));
+            return;
+        }
+
+        long postId;
+        try {
+            postId = Long.parseLong(ctx.pathParam("id"));
+        } catch (Exception e) {
+            json(ctx, 400, new JsonObject().put("error", "invalid post id"));
+            return;
+        }
+
+        JsonObject body = ctx.body() == null ? new JsonObject() : ctx.body().asJsonObject();
+        if (!body.containsKey("pinned")) {
+            json(ctx, 400, new JsonObject().put("error", "pinned field required"));
+            return;
+        }
+        boolean pinned = Boolean.TRUE.equals(body.getBoolean("pinned"));
+        postService.setPostPinned(postId, pinned, role)
+                .onSuccess(result -> json(ctx, 200, result))
+                .onFailure(err -> handleFailure(ctx, err));
+    }
+
     private Long extractUserId(RoutingContext ctx) {
         String auth = ctx.request().getHeader("Authorization");
         if (auth == null || !auth.startsWith("Bearer ")) {

@@ -25,7 +25,6 @@ public class HttpServerVerticle extends AbstractVerticle {
     @Override
     public void start() {
         router = Router.router(vertx);
-        router.route().handler(BodyHandler.create());
         UserController userController = new UserController();
         PostController postController = new PostController();
         VoteController voteController = new VoteController();
@@ -39,12 +38,15 @@ public class HttpServerVerticle extends AbstractVerticle {
                 "accept",
                 "Authorization"
         );
+        // CorsHandler must run before BodyHandler so OPTIONS preflight works. Only addRelativeOrigin(".*") keeps
+        // "allow any origin"; adding another pattern (e.g. ^null$) leaves restricted mode and rejects http origins → 403.
         router.route().handler(CorsHandler.create()
                 .addRelativeOrigin(".*")
                 .allowedHeaders(allowedHeaders)
                 .allowedMethods(Set.of(io.vertx.core.http.HttpMethod.GET, io.vertx.core.http.HttpMethod.POST,
                         io.vertx.core.http.HttpMethod.PUT, io.vertx.core.http.HttpMethod.PATCH,
                         io.vertx.core.http.HttpMethod.DELETE, io.vertx.core.http.HttpMethod.OPTIONS)));
+        router.route().handler(BodyHandler.create());
 
         router.get("/api/health").handler(ctx -> {
             JsonObject body = new JsonObject()
@@ -59,6 +61,8 @@ public class HttpServerVerticle extends AbstractVerticle {
         router.get("/api/auth/me").handler(userController::handleMe);
         router.get("/api/profile/me").handler(userController::handleProfileMe);
         router.get("/api/posts").handler(postController::handleListPosts);
+        router.patch("/api/posts/:id/pinned").handler(postController::handlePatchPostPinned);
+        router.post("/api/posts/:id/my-pin/toggle").handler(postController::handlePostToggleMyPin);
         router.get("/api/posts/:id").handler(postController::handleGetPostDetail);
         router.post("/api/posts").handler(postController::handleCreatePost);
         router.post("/api/posts/:postId/vote").handler(voteController::handleVotePost);

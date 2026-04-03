@@ -34,7 +34,7 @@
   }
 
   async function loadCommentsForPost(postId) {
-    const res = await fetch(`/api/posts/${postId}/comments`, { headers: authHeaders() });
+    const res = await fetch(window.apiUrl(`/api/posts/${postId}/comments`), { headers: authHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     const items = (data.items || []).map(mapComment);
@@ -86,7 +86,7 @@
       window.showToast?.('Schreibe zuerst einen Kommentar', 'error');
       return;
     }
-    const res = await fetch(`/api/posts/${postId}/comments`, {
+    const res = await fetch(window.apiUrl(`/api/posts/${postId}/comments`), {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ content })
@@ -113,7 +113,7 @@
       window.showToast?.('Antwort darf nicht leer sein', 'error');
       return;
     }
-    const res = await fetch(`/api/posts/${postId}/comments`, {
+    const res = await fetch(window.apiUrl(`/api/posts/${postId}/comments`), {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ content, parentCommentId })

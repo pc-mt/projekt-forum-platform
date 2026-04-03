@@ -1,4 +1,10 @@
 (function () {
+  if (typeof window.apiUrl !== "function") {
+    window.__API_BASE__ = window.__API_BASE__ || "";
+    window.apiUrl = function (p) {
+      return (p.charAt(0) === "/" ? p : "/" + p);
+    };
+  }
   const TOKEN_KEY = "chat_platform_token";
 
   const userState = {
@@ -143,7 +149,7 @@
     if (!email) return window.showToast?.("Bitte E-Mail eingeben", "error");
     if (!password) return window.showToast?.("Bitte Passwort eingeben", "error");
     try {
-      await handleAuth("/api/auth/login", { email, password });
+      await handleAuth(window.apiUrl("/api/auth/login"), { email, password });
       window.closeModal?.("login");
       window.showToast?.("Erfolgreich angemeldet ✓", "success");
     } catch (e) {
@@ -157,7 +163,7 @@
     const password = document.getElementById("reg-pass")?.value ?? "";
     if (!fullName || !email || !password) return window.showToast?.("Bitte alle Felder ausfuellen", "error");
     try {
-      await handleAuth("/api/auth/register", { fullName, email, password });
+      await handleAuth(window.apiUrl("/api/auth/register"), { fullName, email, password });
       window.closeModal?.("register");
       window.showToast?.("Konto erfolgreich erstellt ✓", "success");
     } catch (e) {
@@ -214,7 +220,7 @@
       return;
     }
     try {
-      const res = await fetch("/api/auth/me", { headers: authHeaders() });
+      const res = await fetch(window.apiUrl("/api/auth/me"), { headers: authHeaders() });
       if (!res.ok) {
         window.logout();
         return;

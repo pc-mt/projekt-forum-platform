@@ -25,11 +25,47 @@ function getCurrentUser(){
   return { name: 'Gast', initials: 'G', role: 'user' };
 }
 
+function isLoggedIn() {
+  return Boolean(window.userState?.isLoggedIn && window.userState?.token);
+}
+
+function feedPinBadgesHtml(p) {
+  const parts = [];
+  if (p.viewerPinned) {
+    parts.push('<span class="post-pinned-badge post-pinned-personal">📌 Für dich angeheftet</span>');
+  }
+  if (p.isGloballyPinned) {
+    parts.push('<span class="post-pinned-badge">📌 Angeheftet</span>');
+  }
+  return parts.join('');
+}
+
+function getFeedSearchQuery() {
+  return (document.getElementById('feed-search')?.value || '').trim().toLowerCase();
+}
+
+function postsMatchingSearch() {
+  const q = getFeedSearchQuery();
+  if (!q) return posts;
+  return posts.filter((p) => {
+    const hay = `${p.title} ${p.excerpt} ${p.author}`.toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function applyFeedSearch() {
+  renderPosts();
+}
+
 function mapPostDto(item) {
+  const isGloballyPinned = Boolean(item.isPinned);
+  const viewerPinned = Boolean(item.viewerPinned);
   return {
     id: item.id,
     type: item.postType,
-    pinned: Boolean(item.isPinned),
+    isGloballyPinned,
+    viewerPinned,
+    pinned: isGloballyPinned || viewerPinned,
     title: item.title,
     excerpt: item.contentPreview || '',
     content: item.content || item.contentPreview || '',
@@ -53,7 +89,7 @@ async function refreshFeed() {
   const params = new URLSearchParams();
   if (currentFilter !== 'all') params.set('type', currentFilter);
   params.set('sort', currentSort);
-  const res = await fetch(`/api/posts?${params.toString()}`, {
+  const res = await fetch(window.apiUrl(`/api/posts?${params.toString()}`), {
     headers: getAuthHeaders()
   });
   const data = await res.json().catch(() => ({}));
@@ -66,7 +102,7 @@ async function refreshFeed() {
 }
 
 async function refreshGlobalCounts() {
-  const res = await fetch('/api/posts?sort=recent&limit=200', {
+  const res = await fetch(window.apiUrl('/api/posts?sort=recent&limit=200'), {
     headers: getAuthHeaders()
   });
   const data = await res.json().catch(() => ({}));
@@ -131,7 +167,13 @@ function renderPosts(){
     return;
   }
 
-  container.innerHTML = posts.map((p,i) => `
+  const visible = postsMatchingSearch();
+  if (!visible.length) {
+    container.innerHTML = `<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><h3>Keine Treffer</h3><p>Andere Suchbegriffe versuchen oder Filter in der Seitenleiste anpassen.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = visible.map((p,i) => `
     <div class="post-card ${p.pinned?'pinned':''}" onclick="openPost(${p.id})" style="animation-delay:${i*0.07}s">
       <div class="post-card-body">
         <div class="post-meta">
@@ -156,10 +198,10 @@ function renderPosts(){
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
           ${p.commentsCount} Kommentar${p.commentsCount!==1?'s':''}
         </div>
-        ${getCurrentUser().role==='admin'?`
-        <div class="post-action" onclick="togglePin(${p.id},event)" style="margin-left:auto;">
+        ${isLoggedIn()?`
+        <div class="post-action" onclick="toggleMyPin(${p.id},event)" style="margin-left:auto;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/></svg>
-          ${p.pinned?'Loesen':'Anheften'}
+          ${p.viewerPinned?'Loesen':'Fuer dich anheften'}
         </div>`:''}
       </div>
     </div>
@@ -171,11 +213,11 @@ function renderAdminTable(){
   if(!tbody) return;
   tbody.innerHTML = posts.map(p=>`
     <tr>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.pinned?'📌 ':''}${p.title}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.isGloballyPinned?'📌 ':''}${p.title}</td>
       <td><span class="role-badge ${p.role==='admin'?'role-admin':'role-user'}">${p.author}</span></td>
       <td>${getTagHTML(p.type)}</td>
       <td style="color:var(--green);font-weight:700;">+${p.score}</td>
-      <td><span class="status-dot ${p.pinned?'status-pinned':'status-active'}"></span>${p.pinned?'Angeheftet':'Aktiv'}</td>
+      <td><span class="status-dot ${p.isGloballyPinned?'status-pinned':'status-active'}"></span>${p.isGloballyPinned?'Global angeheftet':'Aktiv'}</td>
       <td style="display:flex;gap:6px;">-</td>
     </tr>
   `).join('');
@@ -202,14 +244,131 @@ async function vote(id, dir){
   }
 }
 
-function togglePin(id, e){
-  if(e) e.stopPropagation();
-  const p = posts.find(x=>x.id===id);
-  if(!p) return;
-  p.pinned = !p.pinned;
-  renderPosts();
-  renderAdminTable();
-  showToast(p.pinned?'Beitrag angeheftet 📌':'Beitrag geloest','success');
+function syncDetailPinUi(p) {
+  const personal = document.getElementById('detail-pin-btn');
+  if (personal) {
+    personal.textContent = p.viewerPinned ? 'Loesen' : 'Fuer dich anheften';
+    personal.setAttribute('aria-label', p.viewerPinned ? 'Persoenliche Anheftung aufheben' : 'Fuer dich anheften');
+    personal.classList.toggle('is-pinned', Boolean(p.viewerPinned));
+  }
+  const globalBtn = document.getElementById('detail-global-pin-btn');
+  if (globalBtn) {
+    globalBtn.textContent = p.isGloballyPinned ? 'Global loesen' : 'Global anheften';
+    globalBtn.setAttribute('aria-label', p.isGloballyPinned ? 'Globale Anheftung aufheben' : 'Fuer alle anheften');
+    globalBtn.classList.toggle('is-pinned', Boolean(p.isGloballyPinned));
+  }
+  const meta = document.querySelector('#detail-content .post-meta');
+  if (!meta) return;
+  meta.querySelectorAll('.post-pinned-badge').forEach((b) => b.remove());
+  if (p.viewerPinned) {
+    const span = document.createElement('span');
+    span.className = 'post-pinned-badge post-pinned-personal';
+    span.textContent = '📌 Für dich angeheftet';
+    meta.appendChild(span);
+  }
+  if (p.isGloballyPinned) {
+    const span = document.createElement('span');
+    span.className = 'post-pinned-badge';
+    span.textContent = '📌 Angeheftet';
+    meta.appendChild(span);
+  }
+}
+
+function applyViewerPinState(id, viewerPinned) {
+  const inList = posts.find((x) => x.id === id);
+  if (inList) {
+    inList.viewerPinned = viewerPinned;
+    inList.pinned = Boolean(inList.isGloballyPinned || viewerPinned);
+  }
+}
+
+async function toggleMyPin(id, e) {
+  if (e) e.stopPropagation();
+  if (!isLoggedIn()) {
+    showToast('Bitte zuerst anmelden', 'error');
+    openModal('login');
+    return;
+  }
+  try {
+    const res = await fetch(window.apiUrl(`/api/posts/${id}/my-pin/toggle`), {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.error || `HTTP ${res.status}`, 'error');
+      return;
+    }
+    const viewerPinned = Boolean(data.viewerPinned);
+    applyViewerPinState(id, viewerPinned);
+    renderPosts();
+    renderAdminTable();
+    if (openPostId === id) {
+      const cur = posts.find((x) => x.id === id);
+      if (cur) syncDetailPinUi(cur);
+    }
+    showToast(viewerPinned ? 'Fuer dich angeheftet 📌' : 'Anheftung aufgehoben', 'success');
+  } catch {
+    showToast('Netzwerkfehler', 'error');
+  }
+}
+
+async function toggleGlobalPin(id, e) {
+  if (e) e.stopPropagation();
+  if (getCurrentUser().role !== 'admin') {
+    showToast('Nur Admins koennen global anheften', 'error');
+    return;
+  }
+  let p = posts.find((x) => x.id === id);
+  let nextPinned;
+  if (p) {
+    nextPinned = !p.isGloballyPinned;
+  } else {
+    try {
+      const res = await fetch(window.apiUrl(`/api/posts/${id}`), { headers: getAuthHeaders() });
+      if (!res.ok) return;
+      const d = await res.json();
+      nextPinned = !Boolean(d.isPinned);
+    } catch {
+      showToast('Beitrag nicht geladen', 'error');
+      return;
+    }
+  }
+  try {
+    const res = await fetch(window.apiUrl(`/api/posts/${id}/pinned`), {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ pinned: nextPinned })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.error || `HTTP ${res.status}`, 'error');
+      return;
+    }
+    const confirmed = Boolean(data.isPinned);
+    const inList = posts.find((x) => x.id === id);
+    if (inList) {
+      inList.isGloballyPinned = confirmed;
+      inList.pinned = Boolean(confirmed || inList.viewerPinned);
+    }
+    renderPosts();
+    renderAdminTable();
+    if (openPostId === id) {
+      const cur = posts.find((x) => x.id === id);
+      if (cur) syncDetailPinUi(cur);
+    }
+    showToast(confirmed ? 'Global angeheftet 📌' : 'Globale Anheftung aufgehoben', 'success');
+  } catch {
+    showToast('Netzwerkfehler', 'error');
+  }
+}
+
+function toggleMyPinFromDetail() {
+  if (openPostId) toggleMyPin(openPostId, null);
+}
+
+function toggleGlobalPinFromDetail() {
+  if (openPostId) toggleGlobalPin(openPostId, null);
 }
 
 function deletePost(id, e){
@@ -223,9 +382,10 @@ function deletePost(id, e){
 }
 
 async function openPost(id){
+  if (typeof closeSidebar === 'function') closeSidebar();
   let p = posts.find(x=>x.id===id);
   try {
-    const res = await fetch(`/api/posts/${id}`, { headers: getAuthHeaders() });
+    const res = await fetch(window.apiUrl(`/api/posts/${id}`), { headers: getAuthHeaders() });
     if (!res.ok) {
       showToast('Beitrag nicht gefunden', 'error');
       return;
@@ -238,6 +398,9 @@ async function openPost(id){
       p.dislikes = detail.stats?.dislikes ?? p.dislikes;
       p.commentsCount = detail.stats?.commentsCount ?? p.commentsCount;
       p.userVote = detail.viewerVote === 'up' ? 1 : detail.viewerVote === 'down' ? -1 : 0;
+      p.isGloballyPinned = Boolean(detail.isPinned);
+      p.viewerPinned = Boolean(detail.viewerPinned);
+      p.pinned = p.isGloballyPinned || p.viewerPinned;
     } else {
       p = mapPostDto({
         id: detail.id,
@@ -246,6 +409,7 @@ async function openPost(id){
         contentPreview: detail.content || '',
         content: detail.content,
         isPinned: detail.isPinned,
+        viewerPinned: detail.viewerPinned,
         createdAt: detail.createdAt,
         author: detail.author,
         stats: detail.stats,
@@ -269,14 +433,21 @@ async function openPost(id){
   window.openPostId = id;
   const panel = document.getElementById('detail-panel');
   const adminBtns = document.getElementById('detail-admin-btns');
+  const pinBtn = document.getElementById('detail-pin-btn');
+  const globalPinBtn = document.getElementById('detail-global-pin-btn');
+  if (pinBtn) {
+    pinBtn.style.display = isLoggedIn() ? '' : 'none';
+  }
+  if (globalPinBtn) {
+    globalPinBtn.style.display = getCurrentUser().role === 'admin' ? '' : 'none';
+  }
 
   adminBtns.innerHTML = getCurrentUser().role==='admin' ? `
-    <button class="btn btn-ghost btn-sm" onclick="togglePin(${id},event)">${p.pinned?'Loesen':'Anheften'}</button>
     <button class="btn btn-sm" style="background:rgba(224,85,85,0.1);color:var(--red);border:1px solid var(--red);" onclick="deletePost(${id},event)">Loeschen</button>
   ` : '';
 
   document.getElementById('detail-content').innerHTML = `
-    <div class="post-meta">${getTagHTML(p.type)}<span class="post-author">von <strong>${p.author}</strong> <span class="role-badge ${p.role==='admin'?'role-admin':'role-user'}">${p.role==='admin'?'Admin':'User'}</span></span><span class="post-author">${p.date}</span>${p.pinned?'<span class="post-pinned-badge">📌 Angeheftet</span>':''}</div>
+    <div class="post-meta">${getTagHTML(p.type)}<span class="post-author">von <strong>${p.author}</strong> <span class="role-badge ${p.role==='admin'?'role-admin':'role-user'}">${p.role==='admin'?'Admin':'User'}</span></span><span class="post-author">${p.date}</span></div>
     <div class="detail-title">${p.title}</div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
       <button class="vote-btn up ${p.userVote===1?'active':''}" onclick="vote(${p.id},1)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg></button>
@@ -295,6 +466,7 @@ async function openPost(id){
       </div>
     </div>
   `;
+  syncDetailPinUi(p);
   panel.classList.add('open');
 }
 
@@ -302,6 +474,7 @@ function closeDetail(){
   document.getElementById('detail-panel').classList.remove('open');
   openPostId = null;
   window.openPostId = null;
+  if (typeof closeSidebar === 'function') closeSidebar();
 }
 
 function setFilter(type){
@@ -309,23 +482,23 @@ function setFilter(type){
   if (typeof navigate === 'function') {
     navigate('feed');
   }
+  if (typeof closeSidebar === 'function') closeSidebar();
   refreshFeed().catch(e => showToast(e.message, 'error'));
 }
 
-function setFilterChip(el, type){
-  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
-  el.classList.add('active');
-  setFilter(type);
+function showPopularPosts(){
+  currentSort = 'popular';
+  currentFilter = 'all';
+  if (typeof navigate === 'function') navigate('feed');
+  if (typeof closeSidebar === 'function') closeSidebar();
+  const alleBtn = document.querySelector('#sidebar > button.sidebar-item');
+  if (alleBtn && typeof setSidebarActive === 'function') setSidebarActive(alleBtn);
+  refreshFeed().catch(e => showToast(e.message, 'error'));
 }
 
 function setSidebarActive(el){
   document.querySelectorAll('.sidebar-item').forEach(i=>i.classList.remove('active'));
   el.classList.add('active');
-}
-
-function sortPosts(val){
-  currentSort = val;
-  refreshFeed().catch(e => showToast(e.message, 'error'));
 }
 
 function selectTag(tag){
@@ -345,7 +518,7 @@ async function submitPost(){
   if(!title||!body){ showToast('Bitte Titel und Inhalt ausfuellen','error'); return; }
 
   const token = window.userState?.token;
-  const res = await fetch('/api/posts', {
+  const res = await fetch(window.apiUrl('/api/posts'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -368,3 +541,8 @@ async function submitPost(){
 
 window.openPost = openPost;
 window.renderPosts = renderPosts;
+window.showPopularPosts = showPopularPosts;
+window.toggleMyPin = toggleMyPin;
+window.toggleGlobalPin = toggleGlobalPin;
+window.toggleMyPinFromDetail = toggleMyPinFromDetail;
+window.toggleGlobalPinFromDetail = toggleGlobalPinFromDetail;
