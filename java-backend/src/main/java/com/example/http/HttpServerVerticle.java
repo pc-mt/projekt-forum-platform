@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import com.example.post.PostController;
 import com.example.user.UserController;
+import com.example.vote.VoteController;
 
 import java.util.Set;
 
@@ -26,6 +27,7 @@ public class HttpServerVerticle extends AbstractVerticle {
         router.route().handler(BodyHandler.create());
         UserController userController = new UserController();
         PostController postController = new PostController();
+        VoteController voteController = new VoteController();
 
         Set<String> allowedHeaders = Set.of(
                 "x-requested-with",
@@ -57,6 +59,7 @@ public class HttpServerVerticle extends AbstractVerticle {
         router.get("/api/posts").handler(postController::handleListPosts);
         router.get("/api/posts/:id").handler(postController::handleGetPostDetail);
         router.post("/api/posts").handler(postController::handleCreatePost);
+        router.post("/api/posts/:postId/vote").handler(voteController::handleVotePost);
 
         vertx.createHttpServer()
                 .requestHandler(router)
