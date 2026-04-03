@@ -1,3 +1,6 @@
 .env
 java-backend/target/
 *.log
+
+# Copie locale / variante — ne pas versionner
+Plattform-with-Junior-/

@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS posts (
 CREATE TABLE IF NOT EXISTS comments (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     post_id BIGINT UNSIGNED NOT NULL,
+    parent_comment_id BIGINT UNSIGNED NULL,
     author_id BIGINT UNSIGNED NOT NULL,
     content TEXT NOT NULL,
     status ENUM('visible', 'hidden', 'deleted') NOT NULL DEFAULT 'visible',
@@ -49,6 +50,9 @@ CREATE TABLE IF NOT EXISTS comments (
     KEY idx_comments_author_created (author_id, created_at),
     CONSTRAINT fk_comments_post
         FOREIGN KEY (post_id) REFERENCES posts(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_comments_parent
+        FOREIGN KEY (parent_comment_id) REFERENCES comments(id)
         ON DELETE CASCADE,
     CONSTRAINT fk_comments_author
         FOREIGN KEY (author_id) REFERENCES users(id)
@@ -69,6 +73,24 @@ CREATE TABLE IF NOT EXISTS votes (
         FOREIGN KEY (post_id) REFERENCES posts(id)
         ON DELETE CASCADE,
     CONSTRAINT fk_votes_user
+        FOREIGN KEY (user_id) REFERENCES users(id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS comment_votes (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    comment_id BIGINT UNSIGNED NOT NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    vote_type ENUM('up', 'down') NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_comment_vote (comment_id, user_id),
+    KEY idx_comment_votes_comment (comment_id),
+    KEY idx_comment_votes_user (user_id),
+    CONSTRAINT fk_comment_votes_comment
+        FOREIGN KEY (comment_id) REFERENCES comments(id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_comment_votes_user
         FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
