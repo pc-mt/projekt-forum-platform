@@ -3,7 +3,24 @@ let currentFilter = 'all';
 let currentSort = 'popular';
 let openPostId = null;
 let posts = [];
-let globalCounts = { all: 0, news: 0, idea: 0, discussion: 0, comments: 0, votes: 0 };
+let globalCounts = { all: 0, news: 0, idea: 0, discussion: 0, comments: 0, votes: 0, globallyPinned: 0 };
+
+/** Ersetzt Echtzeit-Protokolle: sanfte Daten-Aktualisierung per Polling. */
+const FEED_POLL_MS = 500;
+const GLOBAL_WIDGETS_POLL_EVERY = 4;
+let feedPollTimer = null;
+let feedPollTick = 0;
+let feedPollInFlight = false;
+let lastDetailCommentsKey = '';
+
+/** Voller Kommentarbaum (inkl. replies) für sanfte Detail-Updates ohne flackerndes Neu-Rendern. */
+function commentsDataKey(payload) {
+  try {
+    return JSON.stringify(payload || []);
+  } catch {
+    return '';
+  }
+}
 
 window.getPostById = (id) => posts.find((x) => x.id === id);
 
@@ -57,6 +74,37 @@ function applyFeedSearch() {
   renderPosts();
 }
 
+function sortPostsInPlace() {
+  const byPinned = (a, b) => {
+    const g = (a.isGloballyPinned ? 1 : 0) - (b.isGloballyPinned ? 1 : 0);
+    if (g !== 0) return -g;
+    const v = (a.viewerPinned ? 1 : 0) - (b.viewerPinned ? 1 : 0);
+    if (v !== 0) return -v;
+    return 0;
+  };
+  const byPopular = (a, b) => {
+    const l = (b.likes || 0) - (a.likes || 0);
+    if (l !== 0) return l;
+    const d = (a.dislikes || 0) - (b.dislikes || 0);
+    if (d !== 0) return d;
+    return String(b.date).localeCompare(String(a.date));
+  };
+  const byComments = (a, b) => {
+    const c = (b.commentsCount || 0) - (a.commentsCount || 0);
+    if (c !== 0) return c;
+    return String(b.date).localeCompare(String(a.date));
+  };
+  const byRecent = (a, b) => String(b.date).localeCompare(String(a.date));
+
+  posts.sort((a, b) => {
+    const p = byPinned(a, b);
+    if (p !== 0) return p;
+    if (currentSort === 'popular') return byPopular(a, b);
+    if (currentSort === 'comments') return byComments(a, b);
+    return byRecent(a, b);
+  });
+}
+
 function mapPostDto(item) {
   const isGloballyPinned = Boolean(item.isPinned);
   const viewerPinned = Boolean(item.viewerPinned);
@@ -95,27 +143,301 @@ async function refreshFeed() {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   posts = (data.items || []).map(mapPostDto);
+  sortPostsInPlace();
   window.posts = posts;
   updateFeedWidgets();
   renderPosts();
   renderAdminTable();
 }
 
-async function refreshGlobalCounts() {
-  const res = await fetch(window.apiUrl('/api/posts?sort=recent&limit=200'), {
-    headers: getAuthHeaders()
+function patchPostCardDom(p) {
+  const card = document.querySelector(`.post-card[data-post-id="${p.id}"]`);
+  if (!card) return;
+  const footer = card.querySelector('.post-footer');
+  if (!footer) return;
+  const scores = footer.querySelectorAll('.score');
+  if (scores.length >= 2) {
+    scores[0].textContent = `(${p.likes ?? 0})`;
+    scores[1].textContent = `(${p.dislikes ?? 0})`;
+  }
+  const up = footer.querySelector('.vote-btn.up');
+  const down = footer.querySelector('.vote-btn.down');
+  if (up) up.classList.toggle('active', p.userVote === 1);
+  if (down) down.classList.toggle('active', p.userVote === -1);
+  const commentAction = footer.querySelector('.post-action');
+  if (commentAction && commentAction.getAttribute('onclick')?.includes('openPost')) {
+    commentAction.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>${p.commentsCount} Kommentar${p.commentsCount !== 1 ? 's' : ''}`;
+  }
+  const pinActions = footer.querySelectorAll('.post-action');
+  pinActions.forEach((el) => {
+    if (el.getAttribute('style')?.includes('margin-left:auto') && isLoggedIn()) {
+      el.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/></svg>${p.viewerPinned ? 'Loesen' : 'Fuer dich anheften'}`;
+    }
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) return;
-  const allPosts = (data.items || []).map(mapPostDto);
-  globalCounts = {
-    all: allPosts.length,
-    news: allPosts.filter((p) => p.type === 'news').length,
-    idea: allPosts.filter((p) => p.type === 'idea').length,
-    discussion: allPosts.filter((p) => p.type === 'discussion').length,
-    comments: allPosts.reduce((acc, p) => acc + (p.commentsCount || 0), 0),
-    votes: allPosts.reduce((acc, p) => acc + (p.likes || 0) + (p.dislikes || 0), 0)
-  };
+  card.classList.toggle('pinned', Boolean(p.pinned));
+  const meta = card.querySelector('.post-meta');
+  if (meta) {
+    meta.querySelectorAll('.post-pinned-badge').forEach((b) => b.remove());
+    const pinHtml = feedPinBadgesHtml(p);
+    if (pinHtml) meta.insertAdjacentHTML('beforeend', pinHtml);
+  }
+}
+
+function patchDetailVoteDom(p) {
+  if (!p || openPostId !== p.id) return;
+  if (!document.getElementById('detail-panel')?.classList.contains('open')) return;
+  const detailRoot = document.getElementById('detail-content');
+  if (!detailRoot) return;
+  const scores = detailRoot.querySelectorAll('.score');
+  if (scores.length >= 2) {
+    scores[0].textContent = `(${p.likes ?? 0})`;
+    scores[1].textContent = `(${p.dislikes ?? 0})`;
+  }
+  const up = detailRoot.querySelector('.vote-btn.up');
+  const down = detailRoot.querySelector('.vote-btn.down');
+  if (up) up.classList.toggle('active', p.userVote === 1);
+  if (down) down.classList.toggle('active', p.userVote === -1);
+}
+
+async function softPollFeedFromServer() {
+  if (document.hidden) return;
+  const feedPage = document.getElementById('page-feed');
+  if (!feedPage?.classList.contains('active')) return;
+  if (feedPollInFlight) return;
+  feedPollInFlight = true;
+  try {
+    const params = new URLSearchParams();
+    if (currentFilter !== 'all') params.set('type', currentFilter);
+    params.set('sort', currentSort);
+    params.set('limit', '100');
+    const res = await fetch(window.apiUrl(`/api/posts?${params.toString()}`), {
+      headers: getAuthHeaders()
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return;
+
+    const incoming = (data.items || []).map(mapPostDto);
+    const prevOrder = posts.map((p) => p.id).join('|');
+    const byId = new Map(posts.map((p) => [p.id, p]));
+    const merged = [];
+    for (const fresh of incoming) {
+      const old = byId.get(fresh.id);
+      if (old) {
+        const changed =
+          old.likes !== fresh.likes ||
+          old.dislikes !== fresh.dislikes ||
+          old.commentsCount !== fresh.commentsCount ||
+          old.userVote !== fresh.userVote ||
+          old.viewerPinned !== fresh.viewerPinned ||
+          old.isGloballyPinned !== fresh.isGloballyPinned ||
+          old.pinned !== fresh.pinned ||
+          old.score !== fresh.score;
+        Object.assign(old, {
+          score: fresh.score,
+          likes: fresh.likes,
+          dislikes: fresh.dislikes,
+          commentsCount: fresh.commentsCount,
+          userVote: fresh.userVote,
+          viewerPinned: fresh.viewerPinned,
+          isGloballyPinned: fresh.isGloballyPinned,
+          pinned: fresh.pinned,
+          title: fresh.title,
+          excerpt: fresh.excerpt
+        });
+        merged.push(old);
+        if (changed) patchPostCardDom(old);
+      } else {
+        merged.push(fresh);
+      }
+    }
+
+    posts = merged;
+    sortPostsInPlace();
+    window.posts = posts;
+    const newOrder = posts.map((p) => p.id).join('|');
+    if (newOrder !== prevOrder) {
+      renderPosts();
+      renderAdminTable();
+    }
+
+    feedPollTick++;
+    if (feedPollTick % GLOBAL_WIDGETS_POLL_EVERY === 0) {
+      refreshGlobalCounts().catch(() => {});
+    }
+
+    if (openPostId) {
+      await softPollOpenDetail();
+    }
+  } finally {
+    feedPollInFlight = false;
+  }
+}
+
+async function softPollOpenDetail() {
+  const id = openPostId;
+  if (!id || !document.getElementById('detail-panel')?.classList.contains('open')) return;
+
+  try {
+    const res = await fetch(window.apiUrl(`/api/posts/${id}`), { headers: getAuthHeaders() });
+    if (!res.ok) return;
+    const detail = await res.json();
+    const p = posts.find((x) => x.id === id);
+    if (!p) return;
+
+    p.score = detail.stats?.score ?? p.score;
+    p.likes = detail.stats?.likes ?? p.likes;
+    p.dislikes = detail.stats?.dislikes ?? p.dislikes;
+    p.commentsCount = detail.stats?.commentsCount ?? p.commentsCount;
+    p.userVote = detail.viewerVote === 'up' ? 1 : detail.viewerVote === 'down' ? -1 : 0;
+    p.isGloballyPinned = Boolean(detail.isPinned);
+    p.viewerPinned = Boolean(detail.viewerPinned);
+    p.pinned = p.isGloballyPinned || p.viewerPinned;
+
+    let commentsPayload = p.comments || [];
+    if (window.commentApi?.loadCommentsForPost) {
+      try {
+        const loaded = await window.commentApi.loadCommentsForPost(id);
+        commentsPayload = loaded.items || [];
+        p.comments = commentsPayload;
+        p.commentsCount = loaded.totalCount ?? p.commentsCount;
+      } catch {
+        /* keep previous */
+      }
+    }
+
+    const detailRoot = document.getElementById('detail-content');
+    if (!detailRoot) return;
+
+    patchDetailVoteDom(p);
+
+    const titleEl = document.getElementById('detail-comments-title');
+    if (titleEl) {
+      titleEl.textContent = `💬 ${p.commentsCount} Kommentar${p.commentsCount !== 1 ? 's' : ''}`;
+    }
+
+    const treeKey = commentsDataKey(commentsPayload);
+    if (treeKey !== lastDetailCommentsKey) {
+      lastDetailCommentsKey = treeKey;
+      const tree = document.getElementById('detail-comments-tree');
+      if (tree && window.commentApi?.renderCommentsHtml) {
+        tree.innerHTML = window.commentApi.renderCommentsHtml(id, commentsPayload);
+      }
+    }
+
+    syncDetailPinUi(p);
+    patchPostCardDom(p);
+
+    updateFeedWidgets();
+  } catch {
+    /* still offline */
+  }
+}
+
+function startFeedPolling() {
+  stopFeedPolling();
+  feedPollTick = 0;
+  feedPollTimer = setInterval(() => {
+    softPollFeedFromServer().catch(() => {});
+  }, FEED_POLL_MS);
+}
+
+function stopFeedPolling() {
+  if (feedPollTimer) {
+    clearInterval(feedPollTimer);
+    feedPollTimer = null;
+  }
+}
+
+function syncFeedPollingState() {
+  const onFeed = document.getElementById('page-feed')?.classList.contains('active');
+  if (onFeed) startFeedPolling();
+  else stopFeedPolling();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && document.getElementById('page-feed')?.classList.contains('active')) {
+    softPollFeedFromServer().catch(() => {});
+  }
+});
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderTopContributorsList(items) {
+  const el = document.getElementById('top-contributors-list');
+  if (!el) return;
+  const palettes = [
+    ['rgba(201,168,76,0.15)', 'var(--gold)'],
+    ['rgba(61,184,122,0.1)', 'var(--green)'],
+    ['rgba(74,144,226,0.1)', 'var(--blue)'],
+    ['rgba(139,111,232,0.1)', 'var(--purple)']
+  ];
+  if (!items.length) {
+    el.innerHTML = `
+      <div class="top-user">
+        <div class="top-user-info">
+          <div class="top-user-name" style="color:var(--text3);">Noch keine Aktivitaet</div>
+          <div class="top-user-pts">—</div>
+        </div>
+      </div>`;
+    return;
+  }
+  el.innerHTML = items
+    .map((u, i) => {
+      const name = u.fullName || 'User';
+      const safeName = escapeHtml(name);
+      const initials = name
+        .split(/\s+/)
+        .map((s) => s[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase() || 'U';
+      const role = (u.role || 'user').toLowerCase();
+      const badge =
+        role === 'admin' ? ' <span class="role-badge role-admin">Admin</span>' : '';
+      const pts = Number(u.points || 0).toLocaleString('de-DE');
+      const [bg, fg] = palettes[i % palettes.length];
+      return `
+      <div class="top-user">
+        <div class="top-user-av" style="background:${bg};color:${fg};">${escapeHtml(initials)}</div>
+        <div class="top-user-info">
+          <div class="top-user-name">${safeName}${badge}</div>
+          <div class="top-user-pts">${pts} pts</div>
+        </div>
+      </div>`;
+    })
+    .join('');
+}
+
+async function refreshGlobalCounts() {
+  const [resPosts, resTop] = await Promise.all([
+    fetch(window.apiUrl('/api/posts?sort=recent&limit=200'), {
+      headers: getAuthHeaders()
+    }),
+    fetch(window.apiUrl('/api/stats/top-contributors?limit=8'), {
+      headers: getAuthHeaders()
+    })
+  ]);
+  const data = await resPosts.json().catch(() => ({}));
+  if (resPosts.ok) {
+    const allPosts = (data.items || []).map(mapPostDto);
+    globalCounts = {
+      all: allPosts.length,
+      news: allPosts.filter((p) => p.type === 'news').length,
+      idea: allPosts.filter((p) => p.type === 'idea').length,
+      discussion: allPosts.filter((p) => p.type === 'discussion').length,
+      comments: allPosts.reduce((acc, p) => acc + (p.commentsCount || 0), 0),
+      votes: allPosts.reduce((acc, p) => acc + (p.likes || 0) + (p.dislikes || 0), 0),
+      globallyPinned: allPosts.filter((p) => p.isGloballyPinned).length
+    };
+  }
+  const topData = await resTop.json().catch(() => ({}));
+  renderTopContributorsList(resTop.ok ? topData.items || [] : []);
 }
 
 function updateFeedWidgets() {
@@ -129,10 +451,8 @@ function updateFeedWidgets() {
   setText('badge-idea', globalCounts.idea);
   setText('badge-discussion', globalCounts.discussion);
 
-  setText('community-members', '-');
-  setText('community-posts', globalCounts.all);
-  setText('community-comments', globalCounts.comments);
-  setText('community-votes', globalCounts.votes);
+  setText('admin-stat-posts', globalCounts.all);
+  setText('admin-stat-pinned-global', globalCounts.globallyPinned ?? 0);
 
   const trending = document.getElementById('trending-list');
   if (trending) {
@@ -174,13 +494,13 @@ function renderPosts(){
   }
 
   container.innerHTML = visible.map((p,i) => `
-    <div class="post-card ${p.pinned?'pinned':''}" onclick="openPost(${p.id})" style="animation-delay:${i*0.07}s">
+    <div class="post-card ${p.pinned?'pinned':''}" data-post-id="${p.id}" onclick="openPost(${p.id})" style="animation-delay:${i*0.07}s">
       <div class="post-card-body">
         <div class="post-meta">
           ${getTagHTML(p.type)}
           <span class="post-author">von <strong>${p.author}</strong> <span class="role-badge ${p.role==='admin'?'role-admin':'role-user'}">${p.role==='admin'?'Admin':'User'}</span></span>
           <span class="post-author">${p.date}</span>
-          ${p.pinned?'<span class="post-pinned-badge">📌 Angeheftet</span>':''}
+          ${feedPinBadgesHtml(p)}
         </div>
         <div class="post-title">${p.title}</div>
         <div class="post-excerpt">${p.excerpt}</div>
@@ -301,6 +621,8 @@ async function toggleMyPin(id, e) {
     }
     const viewerPinned = Boolean(data.viewerPinned);
     applyViewerPinState(id, viewerPinned);
+    sortPostsInPlace();
+    updateFeedWidgets();
     renderPosts();
     renderAdminTable();
     if (openPostId === id) {
@@ -351,6 +673,8 @@ async function toggleGlobalPin(id, e) {
       inList.isGloballyPinned = confirmed;
       inList.pinned = Boolean(confirmed || inList.viewerPinned);
     }
+    sortPostsInPlace();
+    updateFeedWidgets();
     renderPosts();
     renderAdminTable();
     if (openPostId === id) {
@@ -457,8 +781,8 @@ async function openPost(id){
     </div>
     <div class="detail-body">${p.content || p.excerpt}</div>
     <div class="comments-section">
-      <div class="comments-title">💬 ${p.commentsCount} Kommentar${p.commentsCount!==1?'s':''}</div>
-      ${window.commentApi?.renderCommentsHtml ? window.commentApi.renderCommentsHtml(p.id, p.comments || []) : ''}
+      <div class="comments-title" id="detail-comments-title">💬 ${p.commentsCount} Kommentar${p.commentsCount!==1?'s':''}</div>
+      <div id="detail-comments-tree">${window.commentApi?.renderCommentsHtml ? window.commentApi.renderCommentsHtml(p.id, p.comments || []) : ''}</div>
       <div class="comment-form">
         <div class="comment-form-title">Dein Kommentar</div>
         <textarea class="form-input" id="comment-input-${p.id}" placeholder="Teile deine Meinung..." style="min-height:80px;margin-bottom:10px;"></textarea>
@@ -467,6 +791,7 @@ async function openPost(id){
     </div>
   `;
   syncDetailPinUi(p);
+  lastDetailCommentsKey = commentsDataKey(p.comments);
   panel.classList.add('open');
 }
 
@@ -540,6 +865,9 @@ async function submitPost(){
 }
 
 window.openPost = openPost;
+window.syncFeedPollingState = syncFeedPollingState;
+window.patchPostCardDom = patchPostCardDom;
+window.patchDetailVoteDom = patchDetailVoteDom;
 window.renderPosts = renderPosts;
 window.showPopularPosts = showPopularPosts;
 window.toggleMyPin = toggleMyPin;

@@ -48,6 +48,7 @@ public class HttpServerVerticle extends AbstractVerticle {
                         io.vertx.core.http.HttpMethod.DELETE, io.vertx.core.http.HttpMethod.OPTIONS)));
         router.route().handler(BodyHandler.create());
 
+        router.get("/api/stats/top-contributors").handler(userController::handleTopContributors);
         router.get("/api/health").handler(ctx -> {
             JsonObject body = new JsonObject()
                     .put("status", "ok")

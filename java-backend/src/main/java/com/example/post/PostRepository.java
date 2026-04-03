@@ -84,12 +84,14 @@ public class PostRepository {
         }
 
         String orderBy;
+        // Global pin first, then this viewer's personal pins (user_post_pins), then normal sort.
+        String pinPrefix = " ORDER BY p.is_pinned DESC, (MAX(upp.post_id) IS NOT NULL) DESC, ";
         if ("popular".equals(sort)) {
-            orderBy = " ORDER BY p.is_pinned DESC, likes DESC, dislikes ASC, p.created_at DESC ";
+            orderBy = pinPrefix + " likes DESC, dislikes ASC, p.created_at DESC ";
         } else if ("comments".equals(sort)) {
-            orderBy = " ORDER BY p.is_pinned DESC, comments_count DESC, p.created_at DESC ";
+            orderBy = pinPrefix + " comments_count DESC, p.created_at DESC ";
         } else {
-            orderBy = " ORDER BY p.is_pinned DESC, p.created_at DESC ";
+            orderBy = pinPrefix + " p.created_at DESC ";
         }
 
         String listSql = """

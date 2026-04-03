@@ -90,6 +90,51 @@ public class UserRepository {
                 });
     }
 
+    /**
+     * Points = posts×5 + received votes on own posts×3 + visible comments (same rule as profile stats).
+     */
+    public Future<JsonArray> fetchTopContributors(int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 50));
+        String sql = """
+                SELECT ranked.id, ranked.full_name, ranked.role, ranked.points
+                FROM (
+                    SELECT
+                        u.id,
+                        u.full_name,
+                        u.role,
+                        (
+                            (SELECT COUNT(*) FROM posts p WHERE p.author_id = u.id AND p.status = 'published') * 5
+                            + (SELECT COALESCE(SUM(
+                                    CASE WHEN v.vote_type='up' THEN 1 WHEN v.vote_type='down' THEN -1 ELSE 0 END
+                                ), 0)
+                                FROM votes v
+                                JOIN posts p2 ON p2.id = v.post_id
+                                WHERE p2.author_id = u.id AND p2.status = 'published') * 3
+                            + (SELECT COUNT(*) FROM comments c WHERE c.author_id = u.id AND c.status = 'visible')
+                        ) AS points
+                    FROM users u
+                ) ranked
+                WHERE ranked.points > 0
+                ORDER BY ranked.points DESC, ranked.id ASC
+                LIMIT ?
+                """;
+        return pool.preparedQuery(sql)
+                .execute(Tuple.of(safeLimit))
+                .map(rows -> {
+                    List<JsonObject> items = new ArrayList<>();
+                    for (Row row : rows) {
+                        Object pv = row.getValue("points");
+                        int points = pv == null ? 0 : ((Number) pv).intValue();
+                        items.add(new JsonObject()
+                                .put("id", row.getLong("id"))
+                                .put("fullName", row.getString("full_name"))
+                                .put("role", row.getString("role"))
+                                .put("points", points));
+                    }
+                    return new JsonArray(items);
+                });
+    }
+
     public Future<JsonArray> fetchRecentPosts(long userId, int limit) {
         String sql = """
                 SELECT

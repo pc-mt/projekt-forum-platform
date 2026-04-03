@@ -22,6 +22,11 @@ public class UserService {
         this.jwtUtils = new JwtUtils();
     }
 
+    public Future<JsonObject> listTopContributors(int limit) {
+        return repository.fetchTopContributors(limit)
+                .map(items -> new JsonObject().put("items", items));
+    }
+
     public Future<JsonObject> register(JsonObject body) {
         String fullName = clean(body.getString("fullName"));
         String email = normalizeEmail(body.getString("email"));

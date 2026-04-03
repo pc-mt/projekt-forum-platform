@@ -11,6 +11,13 @@ public class UserController {
         this.userService = new UserService();
     }
 
+    public void handleTopContributors(RoutingContext ctx) {
+        int limit = parseInt(ctx.request().getParam("limit"), 10);
+        userService.listTopContributors(limit)
+                .onSuccess(result -> json(ctx, 200, result))
+                .onFailure(err -> handleFailure(ctx, err));
+    }
+
     public void handleRegister(RoutingContext ctx) {
         JsonObject body = readBody(ctx);
         userService.register(body)
@@ -78,6 +85,17 @@ public class UserController {
                 .setStatusCode(status)
                 .putHeader("Content-Type", "application/json")
                 .end(body.encode());
+    }
+
+    private int parseInt(String value, int fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 }
 

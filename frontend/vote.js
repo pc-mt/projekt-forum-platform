@@ -29,9 +29,9 @@
       p.likes = data.likes ?? p.likes;
       p.dislikes = data.dislikes ?? p.dislikes;
       p.userVote = data.viewerVote === 'up' ? 1 : data.viewerVote === 'down' ? -1 : 0;
+      window.patchPostCardDom?.(p);
+      window.patchDetailVoteDom?.(p);
     }
-    if (typeof window.renderPosts === 'function') window.renderPosts();
-    if (window.openPostId === postId && typeof window.openPost === 'function') window.openPost(postId);
     return true;
   }
 

@@ -77,6 +77,7 @@ function navigate(page){
     if (typeof window.loadProfileData === 'function') window.loadProfileData();
     else renderProfile();
   }
+  if (typeof window.syncFeedPollingState === 'function') window.syncFeedPollingState();
 }
 
 let toastTimer;
@@ -91,7 +92,11 @@ function showToast(msg, type='success'){
 }
 
 if (typeof refreshFeed === 'function') {
-  refreshFeed().catch(e => showToast(e.message || 'Feed konnte nicht geladen werden', 'error'));
+  refreshFeed()
+    .then(() => {
+      if (typeof window.syncFeedPollingState === 'function') window.syncFeedPollingState();
+    })
+    .catch(e => showToast(e.message || 'Feed konnte nicht geladen werden', 'error'));
 }
 if (typeof renderProfile === 'function') {
   renderProfile();

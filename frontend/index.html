@@ -117,19 +117,6 @@
       <div class="widgets-area">
         <div class="widget">
           <div class="widget-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-            Community
-          </div>
-          <div class="stats-grid">
-            <div class="stat-box"><div class="stat-num" id="community-members">-</div><div class="stat-label">Mitglieder</div></div>
-            <div class="stat-box"><div class="stat-num" id="community-posts">-</div><div class="stat-label">Posts</div></div>
-            <div class="stat-box"><div class="stat-num" id="community-comments">-</div><div class="stat-label">Kommentare</div></div>
-            <div class="stat-box"><div class="stat-num" id="community-votes">-</div><div class="stat-label">Votes</div></div>
-          </div>
-        </div>
-
-        <div class="widget">
-          <div class="widget-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
             Trending
           </div>
@@ -146,21 +133,10 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             Top contributeurs
           </div>
-          <div class="top-user">
-            <div class="top-user-av" style="background:rgba(201,168,76,0.15);color:var(--gold);">MA</div>
-            <div class="top-user-info"><div class="top-user-name">Marie Aufret <span class="role-badge role-admin">Admin</span></div><div class="top-user-pts">2 840 pts</div></div>
-          </div>
-          <div class="top-user">
-            <div class="top-user-av" style="background:rgba(61,184,122,0.1);color:var(--green);">JK</div>
-            <div class="top-user-info"><div class="top-user-name">Jonas Klein</div><div class="top-user-pts">1 920 pts</div></div>
-          </div>
-          <div class="top-user">
-            <div class="top-user-av" style="background:rgba(74,144,226,0.1);color:var(--blue);">SR</div>
-            <div class="top-user-info"><div class="top-user-name">Sofia Radić</div><div class="top-user-pts">1 440 pts</div></div>
-          </div>
-          <div class="top-user">
-            <div class="top-user-av" style="background:rgba(139,111,232,0.1);color:var(--purple);">LB</div>
-            <div class="top-user-info"><div class="top-user-name">Luca Bernardi</div><div class="top-user-pts">1 180 pts</div></div>
+          <div id="top-contributors-list">
+            <div class="top-user">
+              <div class="top-user-info"><div class="top-user-name" style="color:var(--text3);">Wird geladen...</div></div>
+            </div>
           </div>
         </div>
 
@@ -183,8 +159,8 @@
       </div>
 
       <div class="stats-grid" style="margin-bottom:24px;max-width:600px;">
-        <div class="stat-box"><div class="stat-num">12</div><div class="stat-label">Aktive Beitraege</div></div>
-        <div class="stat-box"><div class="stat-num">3</div><div class="stat-label">Angeheftets</div></div>
+        <div class="stat-box"><div class="stat-num" id="admin-stat-posts">0</div><div class="stat-label">Aktive Beitraege</div></div>
+        <div class="stat-box"><div class="stat-num" id="admin-stat-pinned-global">0</div><div class="stat-label">Global angeheftet</div></div>
         <div class="stat-box"><div class="stat-num">1.2k</div><div class="stat-label">Benutzers</div></div>
         <div class="stat-box" style="border:1px solid var(--border-gold);"><div class="stat-num" style="color:var(--gold);">5</div><div class="stat-label">Zu moderieren</div></div>
       </div>
