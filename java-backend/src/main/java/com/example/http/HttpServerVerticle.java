@@ -8,6 +8,7 @@ import io.vertx.ext.web.handler.CorsHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.example.post.PostController;
 import com.example.user.UserController;
 
 import java.util.Set;
@@ -24,6 +25,7 @@ public class HttpServerVerticle extends AbstractVerticle {
         router = Router.router(vertx);
         router.route().handler(BodyHandler.create());
         UserController userController = new UserController();
+        PostController postController = new PostController();
 
         Set<String> allowedHeaders = Set.of(
                 "x-requested-with",
@@ -52,6 +54,9 @@ public class HttpServerVerticle extends AbstractVerticle {
         router.post("/api/auth/login").handler(userController::handleLogin);
         router.get("/api/auth/me").handler(userController::handleMe);
         router.get("/api/profile/me").handler(userController::handleProfileMe);
+        router.get("/api/posts").handler(postController::handleListPosts);
+        router.get("/api/posts/:id").handler(postController::handleGetPostDetail);
+        router.post("/api/posts").handler(postController::handleCreatePost);
 
         vertx.createHttpServer()
                 .requestHandler(router)
