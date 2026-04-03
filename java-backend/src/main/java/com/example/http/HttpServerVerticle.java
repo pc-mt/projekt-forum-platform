@@ -8,6 +8,7 @@ import io.vertx.ext.web.handler.CorsHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.example.comment.CommentController;
 import com.example.post.PostController;
 import com.example.user.UserController;
 import com.example.vote.VoteController;
@@ -28,6 +29,7 @@ public class HttpServerVerticle extends AbstractVerticle {
         UserController userController = new UserController();
         PostController postController = new PostController();
         VoteController voteController = new VoteController();
+        CommentController commentController = new CommentController();
 
         Set<String> allowedHeaders = Set.of(
                 "x-requested-with",
@@ -60,6 +62,9 @@ public class HttpServerVerticle extends AbstractVerticle {
         router.get("/api/posts/:id").handler(postController::handleGetPostDetail);
         router.post("/api/posts").handler(postController::handleCreatePost);
         router.post("/api/posts/:postId/vote").handler(voteController::handleVotePost);
+        router.get("/api/posts/:postId/comments").handler(commentController::handleListComments);
+        router.post("/api/posts/:postId/comments").handler(commentController::handleCreateComment);
+        router.post("/api/comments/:commentId/vote").handler(commentController::handleVoteComment);
 
         vertx.createHttpServer()
                 .requestHandler(router)
