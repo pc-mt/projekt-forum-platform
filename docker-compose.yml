@@ -1,0 +1,80 @@
+services:
+  mariadb:
+    container_name: chat-platform-mariadb
+    image: mariadb:latest
+    environment:
+      # Defaults alignés sur .env.example — surcharger via fichier .env en prod.
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-change_root_too}
+      MARIADB_DATABASE: ${DB_NAME:-chatplatform}
+      MARIADB_USER: ${DB_USER:-chatuser}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-change_me}
+    volumes:
+      - ./mariadb/mariadb_init:/docker-entrypoint-initdb.d:ro
+      - chat_platform_mariadb_data:/var/lib/mysql
+    ports:
+      - "${DB_PUBLISH_PORT:-3307}:3306"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  phpmyadmin:
+    container_name: chat-platform-phpmyadmin
+    image: phpmyadmin:latest
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      PMA_USER: ${DB_USER:-chatuser}
+      PMA_PASSWORD: ${DB_PASSWORD:-change_me}
+    ports:
+      - "${PHPMYADMIN_PORT:-8081}:80"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  java-backend:
+    container_name: chat-platform-backend
+    image: chat-platform-backend:latest
+    build:
+      context: ./java-backend
+      dockerfile: Dockerfile
+    develop:
+      watch:
+        - action: rebuild
+          path: ./java-backend
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      DB_HOST: ${DB_HOST:-mariadb}
+      # Inside the compose network MariaDB always listens on 3306
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-chatplatform}
+      DB_USER: ${DB_USER:-chatuser}
+      DB_PASSWORD: ${DB_PASSWORD:-change_me}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    container_name: chat-platform-frontend
+    image: nginx:latest
+    volumes:
+      - ./frontend/nginx/conf.d:/etc/nginx/conf.d
+      - ./frontend:/usr/share/nginx/html
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - java-backend
+    restart: unless-stopped
+
+volumes:
+  chat_platform_mariadb_data:
+
+networks:
+  default:
+    name: chat-platform-network

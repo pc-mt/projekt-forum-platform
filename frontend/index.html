@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DMTree Community — Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<!-- ─── NAVBAR ─── -->
+<nav class="navbar">
+  <a class="nav-logo" onclick="navigate('feed')">
+    <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="48" fill="#1A1E28" stroke="#C9A84C" stroke-width="2"/>
+      <!-- Tree trunk -->
+      <rect x="46" y="58" width="8" height="24" rx="3" fill="#C9A84C"/>
+      <!-- Main branches -->
+      <path d="M50 58 L50 28" stroke="#C9A84C" stroke-width="4" stroke-linecap="round"/>
+      <!-- Left branches -->
+      <path d="M50 40 L34 26" stroke="#C9A84C" stroke-width="3" stroke-linecap="round"/>
+      <path d="M50 34 L38 20" stroke="#C9A84C" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M50 48 L30 38" stroke="#C9A84C" stroke-width="2" stroke-linecap="round"/>
+      <!-- Right branches -->
+      <path d="M50 40 L66 26" stroke="#C9A84C" stroke-width="3" stroke-linecap="round"/>
+      <path d="M50 34 L62 20" stroke="#C9A84C" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M50 48 L70 38" stroke="#C9A84C" stroke-width="2" stroke-linecap="round"/>
+      <!-- Leaves dots -->
+      <circle cx="34" cy="24" r="4" fill="#E8C96A"/>
+      <circle cx="38" cy="18" r="3.5" fill="#E8C96A"/>
+      <circle cx="66" cy="24" r="4" fill="#E8C96A"/>
+      <circle cx="62" cy="18" r="3.5" fill="#E8C96A"/>
+      <circle cx="50" cy="26" r="4.5" fill="#E8C96A"/>
+      <circle cx="28" cy="36" r="3" fill="#C9A84C"/>
+      <circle cx="72" cy="36" r="3" fill="#C9A84C"/>
+    </svg>
+    <span class="nav-logo-text">dm<span>tree</span></span>
+  </a>
+
+  <div class="nav-center">
+    <button class="nav-link active" id="nav-feed" onclick="navigate('feed')">🌐 Feed</button>
+    <button class="nav-link" id="nav-admin" onclick="navigate('admin')">🛡️ Admin</button>
+    <button class="nav-link" id="nav-profile" onclick="navigate('profile')">👤 Profil</button>
+  </div>
+
+  <div class="nav-right" id="nav-right">
+    <button class="btn btn-ghost btn-sm" onclick="openModal('login')">Anmelden</button>
+    <button class="btn btn-gold btn-sm" onclick="openModal('register')">Registrieren</button>
+  </div>
+</nav>
+
+<!-- ─── SIDEBAR ─── -->
+<div class="sidebar">
+  <button class="sidebar-item active" onclick="setFilter('all');setSidebarActive(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    Alle Beitraege
+    <span class="sidebar-badge" id="badge-all">12</span>
+  </button>
+  <button class="sidebar-item" onclick="setFilter('news');setSidebarActive(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>
+    Neuigkeiten
+    <span class="sidebar-badge">4</span>
+  </button>
+  <button class="sidebar-item" onclick="setFilter('idea');setSidebarActive(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+    Ideen
+    <span class="sidebar-badge">5</span>
+  </button>
+  <button class="sidebar-item" onclick="setFilter('discussion');setSidebarActive(this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    Diskussionen
+    <span class="sidebar-badge">3</span>
+  </button>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Navigation</div>
+    <button class="sidebar-item" onclick="navigate('profile');setSidebarActive(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Mein Profil
+    </button>
+    <button class="sidebar-item" onclick="navigate('admin');setSidebarActive(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Admin Dashboard
+      <span class="sidebar-badge" style="background:rgba(201,168,76,0.15);color:var(--gold);">ADMIN</span>
+    </button>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Beliebte Tags</div>
+    <button class="sidebar-item" style="font-size:0.8rem;" onclick="setFilter('news');setSidebarActive(this)"># neuigkeiten</button>
+    <button class="sidebar-item" style="font-size:0.8rem;" onclick="setFilter('idea');setSidebarActive(this)"># innovation</button>
+    <button class="sidebar-item" style="font-size:0.8rem;" onclick="setFilter('discussion');setSidebarActive(this)"># collaboration</button>
+  </div>
+</div>
+
+<!-- ─── LAYOUT ─── -->
+<div class="layout">
+  <div class="main">
+
+    <!-- ════════════════ PAGE: FEED ════════════════ -->
+    <div class="page active" id="page-feed">
+      <div class="feed-area">
+        <div class="hero-banner">
+          <div class="feed-title hero-title">🌳 Community DMTree</div>
+          <p class="hero-sub">Austauschen, vorschlagen, abstimmen - dein zentrales Hub fuer organisationsuebergreifende Zusammenarbeit.</p>
+        </div>
+
+        <div class="filter-bar">
+          <button class="filter-chip active" onclick="setFilterChip(this,'all')">Alle</button>
+          <button class="filter-chip" onclick="setFilterChip(this,'news')">📰 Neuigkeiten</button>
+          <button class="filter-chip" onclick="setFilterChip(this,'idea')">💡 Ideen</button>
+          <button class="filter-chip" onclick="setFilterChip(this,'discussion')">💬 Diskussionen</button>
+          <select class="sort-select" onchange="sortPosts(this.value)">
+            <option value="popular">🔥 Beliebtheit</option>
+            <option value="recent">🕒 Neueste</option>
+            <option value="comments">💬 Kommentare</option>
+          </select>
+        </div>
+
+        <div class="create-bar" onclick="openModal('create')">
+          <div class="avatar" style="background:var(--gold-dim);color:var(--gold);">J</div>
+          <div class="create-input">Was gibt es Neues in deiner Organisation?</div>
+          <button class="btn btn-gold btn-sm" onclick="event.stopPropagation();openModal('create')">Veroeffentlichen</button>
+        </div>
+
+        <div id="posts-container"></div>
+      </div>
+
+      <!-- ─── WIDGETS ─── -->
+      <div class="widgets-area">
+        <div class="widget">
+          <div class="widget-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            Community
+          </div>
+          <div class="stats-grid">
+            <div class="stat-box"><div class="stat-num">1.2k</div><div class="stat-label">Membres</div></div>
+            <div class="stat-box"><div class="stat-num">247</div><div class="stat-label">Posts</div></div>
+            <div class="stat-box"><div class="stat-num">89</div><div class="stat-label">Actifs / jour</div></div>
+            <div class="stat-box"><div class="stat-num">4.8k</div><div class="stat-label">Votes</div></div>
+          </div>
+        </div>
+
+        <div class="widget">
+          <div class="widget-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Trending
+          </div>
+          <div class="trending-item" onclick="openPost(0)">
+            <div class="trending-rank">1</div>
+            <div class="trending-info"><div class="trending-title">Nouvelle API de collaboration</div><small>142 votes · 23 Kommentare</small></div>
+          </div>
+          <div class="trending-item" onclick="openPost(2)">
+            <div class="trending-rank">2</div>
+            <div class="trending-info"><div class="trending-title">Idee: Integration Slack</div><small>98 votes · 15 Kommentare</small></div>
+          </div>
+          <div class="trending-item" onclick="openPost(4)">
+            <div class="trending-rank">3</div>
+            <div class="trending-info"><div class="trending-title">Dashboard Analytics v2</div><small>76 votes · 9 Kommentare</small></div>
+          </div>
+          <div class="trending-item" onclick="openPost(1)">
+            <div class="trending-rank">4</div>
+            <div class="trending-info"><div class="trending-title">Retour: Onboarding UX</div><small>54 votes · 18 Kommentare</small></div>
+          </div>
+        </div>
+
+        <div class="widget">
+          <div class="widget-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Top contributeurs
+          </div>
+          <div class="top-user">
+            <div class="top-user-av" style="background:rgba(201,168,76,0.15);color:var(--gold);">MA</div>
+            <div class="top-user-info"><div class="top-user-name">Marie Aufret <span class="role-badge role-admin">Admin</span></div><div class="top-user-pts">2 840 pts</div></div>
+          </div>
+          <div class="top-user">
+            <div class="top-user-av" style="background:rgba(61,184,122,0.1);color:var(--green);">JK</div>
+            <div class="top-user-info"><div class="top-user-name">Jonas Klein</div><div class="top-user-pts">1 920 pts</div></div>
+          </div>
+          <div class="top-user">
+            <div class="top-user-av" style="background:rgba(74,144,226,0.1);color:var(--blue);">SR</div>
+            <div class="top-user-info"><div class="top-user-name">Sofia Radić</div><div class="top-user-pts">1 440 pts</div></div>
+          </div>
+          <div class="top-user">
+            <div class="top-user-av" style="background:rgba(139,111,232,0.1);color:var(--purple);">LB</div>
+            <div class="top-user-info"><div class="top-user-name">Luca Bernardi</div><div class="top-user-pts">1 180 pts</div></div>
+          </div>
+        </div>
+
+        <div class="widget" style="background:var(--gold-dim);border-color:var(--border-gold);">
+          <div class="widget-title" style="color:var(--gold);">✨ Neu hier?</div>
+          <p style="font-size:0.82rem;color:var(--text2);line-height:1.6;margin-bottom:14px;">Erstelle dein Konto, um abzustimmen, zu kommentieren und Ideen mit der Community zu teilen.</p>
+          <button class="btn btn-gold btn-full" onclick="openModal('register')">DMTree beitreten</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════ PAGE: ADMIN ════════════════ -->
+    <div class="page" id="page-admin" style="flex-direction:column;padding:28px 32px;flex:1;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <div>
+          <h1 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;">🛡️ Admin Dashboard</h1>
+          <p style="color:var(--text2);font-size:0.875rem;margin-top:4px;">Verwaltung von Beitraegen und Benutzern</p>
+        </div>
+        <span class="role-badge role-admin" style="font-size:0.8rem;padding:6px 14px;">Als Admin angemeldet</span>
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:24px;max-width:600px;">
+        <div class="stat-box"><div class="stat-num">12</div><div class="stat-label">Aktive Beitraege</div></div>
+        <div class="stat-box"><div class="stat-num">3</div><div class="stat-label">Angeheftets</div></div>
+        <div class="stat-box"><div class="stat-num">1.2k</div><div class="stat-label">Benutzers</div></div>
+        <div class="stat-box" style="border:1px solid var(--border-gold);"><div class="stat-num" style="color:var(--gold);">5</div><div class="stat-label">Zu moderieren</div></div>
+      </div>
+
+      <div class="widget" style="max-width:900px;">
+        <div class="widget-title">📋 Beitragsverwaltung</div>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Titel</th><th>Autor</th><th>Typ</th><th>Stimmen</th><th>Status</th><th>Aktionen</th>
+            </tr>
+          </thead>
+          <tbody id="admin-table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="widget" style="max-width:900px;">
+        <div class="widget-title">👥 Benutzerverwaltung</div>
+        <table class="admin-table">
+          <thead><tr><th>Benutzer</th><th>E-Mail</th><th>Rolle</th><th>Beitraege</th><th>Aktionen</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><div class="top-user-av comment-av" style="background:rgba(201,168,76,0.15);color:var(--gold);">MA</div>Marie Aufret</div></td>
+              <td style="color:var(--text2);">m.aufret@dmtree.io</td>
+              <td><span class="role-badge role-admin">Admin</span></td>
+              <td>34</td>
+              <td><button class="btn btn-ghost btn-sm" style="font-size:0.75rem;">Rolle bearbeiten</button></td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><div class="top-user-av comment-av" style="background:rgba(61,184,122,0.1);color:var(--green);">JK</div>Jonas Klein</div></td>
+              <td style="color:var(--text2);">j.klein@org.eu</td>
+              <td><span class="role-badge role-user">User</span></td>
+              <td>18</td>
+              <td><button class="btn btn-ghost btn-sm" style="font-size:0.75rem;">Rolle bearbeiten</button></td>
+            </tr>
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:8px;"><div class="top-user-av comment-av" style="background:rgba(74,144,226,0.1);color:var(--blue);">SR</div>Sofia Radić</div></td>
+              <td style="color:var(--text2);">s.radic@collab.net</td>
+              <td><span class="role-badge role-user">User</span></td>
+              <td>12</td>
+              <td><button class="btn btn-ghost btn-sm" style="font-size:0.75rem;">Rolle bearbeiten</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ════════════════ PAGE: PROFILE ════════════════ -->
+    <div class="page" id="page-profile" style="flex-direction:column;padding:28px 32px;flex:1;max-width:800px;">
+      <h1 style="font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;margin-bottom:20px;">👤 Mein Profil</h1>
+      <div class="profile-header">
+        <div class="profile-av-lg">J</div>
+        <div class="profile-info">
+          <div class="profile-name"><span id="profile-name-text">-</span> <span id="profile-role-badge" class="role-badge role-user">User</span></div>
+          <div class="profile-email"><span id="profile-email-text">-</span> · <span id="profile-member-since">-</span></div>
+          <div class="profile-stats">
+            <div class="profile-stat"><strong id="profile-posts-count">0</strong><span>Posts</span></div>
+            <div class="profile-stat"><strong id="profile-received-votes">0</strong><span>Erhaltene Stimmen</span></div>
+            <div class="profile-stat"><strong id="profile-comments-count">0</strong><span>Kommentare</span></div>
+            <div class="profile-stat"><strong id="profile-points">0</strong><span>Punkte</span></div>
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm">Modifier</button>
+      </div>
+
+      <div class="widget">
+        <div class="widget-title">Meine neuesten Veroeffentlichungen</div>
+        <div id="profile-posts"></div>
+      </div>
+
+      <div class="widget" style="border-color:var(--red);background:rgba(224,85,85,0.03);">
+        <div class="widget-title" style="color:var(--red);">⚠️ Gefahrenbereich</div>
+        <p style="font-size:0.85rem;color:var(--text2);margin-bottom:14px;">Abmeldung oder Loeschung des Kontos.</p>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-ghost btn-sm" onclick="logout()">Abmelden</button>
+          <button class="btn btn-sm" style="background:rgba(224,85,85,0.1);color:var(--red);border:1px solid var(--red);">Konto loeschen</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- ─── DETAIL PANEL ─── -->
+<div class="detail-panel" id="detail-panel">
+  <div class="detail-header">
+    <button class="detail-back" onclick="closeDetail()">←</button>
+    <span style="font-size:0.875rem;color:var(--text2);">Beitragsdetails</span>
+    <div style="margin-left:auto;display:flex;gap:8px;" id="detail-admin-btns"></div>
+  </div>
+  <div class="detail-content" id="detail-content"></div>
+</div>
+
+<!-- ─── MODALS ─── -->
+
+<!-- LOGIN -->
+<div class="modal-overlay" id="modal-login" onclick="closeModalOutside(event,'login')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('login')">×</button>
+    <div style="text-align:center;margin-bottom:20px;">
+      <svg width="40" height="40" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#1A1E28" stroke="#C9A84C" stroke-width="2"/><rect x="46" y="58" width="8" height="24" rx="3" fill="#C9A84C"/><path d="M50 58 L50 28" stroke="#C9A84C" stroke-width="4" stroke-linecap="round"/><path d="M50 40 L34 26" stroke="#C9A84C" stroke-width="3" stroke-linecap="round"/><path d="M50 34 L38 20" stroke="#C9A84C" stroke-width="2.5" stroke-linecap="round"/><path d="M50 48 L30 38" stroke="#C9A84C" stroke-width="2" stroke-linecap="round"/><path d="M50 40 L66 26" stroke="#C9A84C" stroke-width="3" stroke-linecap="round"/><path d="M50 34 L62 20" stroke="#C9A84C" stroke-width="2.5" stroke-linecap="round"/><path d="M50 48 L70 38" stroke="#C9A84C" stroke-width="2" stroke-linecap="round"/><circle cx="34" cy="24" r="4" fill="#E8C96A"/><circle cx="38" cy="18" r="3.5" fill="#E8C96A"/><circle cx="66" cy="24" r="4" fill="#E8C96A"/><circle cx="62" cy="18" r="3.5" fill="#E8C96A"/><circle cx="50" cy="26" r="4.5" fill="#E8C96A"/></svg>
+    </div>
+    <div class="modal-title">Anmelden</div>
+    <div class="modal-sub">Melde dich in deinem DMTree-Community-Bereich an.</div>
+    <div class="form-group">
+      <label class="form-label">E-Mail-Adresse</label>
+      <input class="form-input" type="email" placeholder="du@organisation.com" id="login-email"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Passwort</label>
+      <input class="form-input" type="password" placeholder="••••••••" id="login-pass"/>
+    </div>
+    <button class="btn btn-gold btn-full" onclick="doLogin()">Anmelden</button>
+    <div class="form-footer">Noch kein Konto? <a onclick="switchModal('login','register')">Registrieren</a></div>
+  </div>
+</div>
+
+<!-- REGISTER -->
+<div class="modal-overlay" id="modal-register" onclick="closeModalOutside(event,'register')">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('register')">×</button>
+    <div class="modal-title">Konto erstellen</div>
+    <div class="modal-sub">Tritt der DMTree-Community bei.</div>
+    <div class="form-group">
+      <label class="form-label">Vollstaendiger Name</label>
+      <input class="form-input" type="text" placeholder="Vorname Nachname" id="reg-name"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">E-Mail-Adresse</label>
+      <input class="form-input" type="email" placeholder="du@organisation.com" id="reg-email"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Passwort</label>
+      <input class="form-input" type="password" placeholder="Mindestens 8 Zeichen" id="reg-pass"/>
+    </div>
+    <button class="btn btn-gold btn-full" onclick="doRegister()">Mein Konto erstellen</button>
+    <div class="form-footer">Schon registriert? <a onclick="switchModal('register','login')">Anmelden</a></div>
+  </div>
+</div>
+
+<!-- CREATE POST -->
+<div class="modal-overlay" id="modal-create" onclick="closeModalOutside(event,'create')">
+  <div class="modal" style="max-width:520px;">
+    <button class="modal-close" onclick="closeModal('create')">×</button>
+    <div class="modal-title">Neuer Beitrag</div>
+    <div class="modal-sub">Teile eine Neuigkeit, eine Idee oder starte eine Diskussion.</div>
+    <div class="form-group">
+      <label class="form-label">Kategorie</label>
+      <div class="tag-selector">
+        <button class="tag-opt sel-news" id="tag-news" onclick="selectTag('news')">📰 Neuigkeit</button>
+        <button class="tag-opt" id="tag-idea" onclick="selectTag('idea')">💡 Idee</button>
+        <button class="tag-opt" id="tag-disc" onclick="selectTag('discussion')">💬 Diskussion</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Titel</label>
+      <input class="form-input" type="text" placeholder="Klarer und praegnenter Titel..." id="post-title"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Inhalt</label>
+      <textarea class="form-input" placeholder="Beschreibe deine Idee oder Neuigkeit..." id="post-body"></textarea>
+    </div>
+    <button class="btn btn-gold btn-full" onclick="submitPost()">Beitrag veroeffentlichen</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="toast-dot"></div>
+  <span id="toast-msg">Nachricht</span>
+</div>
+
+<script src="user.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
